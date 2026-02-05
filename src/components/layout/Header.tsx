@@ -24,8 +24,8 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { label: "Inicio", href: "/" },
-  { label: "Productos", href: "/productos" },
-  { label: "Categorias", href: "/categorias" },
+  { label: "Productos", href: "/products" },
+  { label: "Categorias", href: "/products" },
 ];
 
 export default function Header() {
@@ -120,7 +120,7 @@ export default function Header() {
           <div className="flex items-center gap-2">
             {/* Cart */}
             <Link
-              href="/carrito"
+              href="/cart"
               className="relative rounded-lg p-2 text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-900"
             >
               <ShoppingCart className="h-5 w-5" />
@@ -160,7 +160,7 @@ export default function Header() {
                         </p>
                       </div>
                       <Link
-                        href="/dashboard"
+                        href="/buyer/dashboard"
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
                       >
@@ -168,12 +168,12 @@ export default function Header() {
                         Dashboard
                       </Link>
                       <Link
-                        href="/perfil"
+                        href="/buyer/orders"
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
                       >
                         <UserCircle className="h-4 w-4" />
-                        Mi Perfil
+                        Mis Compras
                       </Link>
                       <div className="my-1 border-t border-surface-100" />
                       <button
@@ -190,7 +190,7 @@ export default function Header() {
                   ) : (
                     <>
                       <Link
-                        href="/login"
+                        href="/auth/login"
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
                       >
@@ -198,7 +198,7 @@ export default function Header() {
                         Iniciar Sesion
                       </Link>
                       <Link
-                        href="/registro"
+                        href="/auth/register"
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
                       >

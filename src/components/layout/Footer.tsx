@@ -20,30 +20,30 @@ interface FooterLinkGroup {
 
 const linkGroups: FooterLinkGroup[] = [
   {
-    title: "Productos",
+    title: "Categorias",
     links: [
-      { label: "Software", href: "/categorias/software" },
-      { label: "Cursos Online", href: "/categorias/cursos" },
-      { label: "E-books", href: "/categorias/ebooks" },
-      { label: "Plantillas", href: "/categorias/plantillas" },
-      { label: "Recursos Graficos", href: "/categorias/graficos" },
+      { label: "Streaming", href: "/products" },
+      { label: "Gaming", href: "/products" },
+      { label: "Juegos Moviles", href: "/products" },
+      { label: "Tiendas Online", href: "/products" },
+      { label: "Redes Sociales", href: "/products" },
     ],
   },
   {
     title: "Empresa",
     links: [
-      { label: "Sobre Nosotros", href: "/sobre-nosotros" },
-      { label: "Contacto", href: "/contacto" },
-      { label: "Preguntas Frecuentes", href: "/faq" },
-      { label: "Blog", href: "/blog" },
+      { label: "Inicio", href: "/" },
+      { label: "Productos", href: "/products" },
+      { label: "Iniciar Sesion", href: "/auth/login" },
+      { label: "Registrarse", href: "/auth/register" },
     ],
   },
   {
     title: "Legal",
     links: [
-      { label: "Terminos de Servicio", href: "/terminos" },
-      { label: "Politica de Privacidad", href: "/privacidad" },
-      { label: "Politica de Reembolso", href: "/reembolsos" },
+      { label: "Terminos de Servicio", href: "#" },
+      { label: "Politica de Privacidad", href: "#" },
+      { label: "Politica de Reembolso", href: "#" },
     ],
   },
 ];
