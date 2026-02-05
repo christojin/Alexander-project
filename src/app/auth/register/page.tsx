@@ -355,14 +355,14 @@ export default function RegisterPage() {
               <label htmlFor="terms" className="text-sm text-surface-600 leading-snug cursor-pointer">
                 Acepto los{" "}
                 <Link
-                  href="/terminos"
+                  href="#"
                   className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
                 >
                   terminos y condiciones
                 </Link>{" "}
                 y la{" "}
                 <Link
-                  href="/privacidad"
+                  href="#"
                   className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
                 >
                   politica de privacidad

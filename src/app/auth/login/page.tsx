@@ -243,7 +243,7 @@ export default function LoginPage() {
             {/* Forgot password */}
             <div className="flex items-center justify-end">
               <Link
-                href="/auth/forgot-password"
+                href="#"
                 className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
               >
                 Olvidaste tu contrasena?
