@@ -12,10 +12,10 @@ import {
   LogIn,
   UserPlus,
   LayoutDashboard,
-  UserCircle,
   LogOut,
   ChevronDown,
 } from "lucide-react";
+import { useApp } from "@/context/AppContext";
 
 interface NavLink {
   label: string;
@@ -29,13 +29,16 @@ const navLinks: NavLink[] = [
 ];
 
 export default function Header() {
+  const { user, isAuthenticated, logout, cartTotalItems } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const cartItemCount = 3;
+
+  const dashboardHref = user
+    ? `/${user.role}/dashboard`
+    : "/buyer/dashboard";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -124,9 +127,9 @@ export default function Header() {
               className="relative rounded-lg p-2 text-surface-600 transition-colors hover:bg-surface-100 hover:text-surface-900"
             >
               <ShoppingCart className="h-5 w-5" />
-              {cartItemCount > 0 && (
+              {cartTotalItems > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent-500 text-[10px] font-bold text-white">
-                  {cartItemCount > 99 ? "99+" : cartItemCount}
+                  {cartTotalItems > 99 ? "99+" : cartTotalItems}
                 </span>
               )}
             </Link>
@@ -149,37 +152,30 @@ export default function Header() {
 
               {userDropdownOpen && (
                 <div className="absolute right-0 top-full mt-2 w-56 origin-top-right rounded-xl border border-surface-200 bg-white p-1.5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
-                  {isLoggedIn ? (
+                  {isAuthenticated && user ? (
                     <>
                       <div className="border-b border-surface-100 px-3 py-2.5 mb-1">
                         <p className="text-sm font-semibold text-surface-900">
-                          Usuario Demo
+                          {user.name}
                         </p>
                         <p className="text-xs text-surface-500">
-                          demo@vendorvault.bo
+                          {user.email}
                         </p>
                       </div>
                       <Link
-                        href="/buyer/dashboard"
+                        href={dashboardHref}
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
                       >
                         <LayoutDashboard className="h-4 w-4" />
                         Dashboard
                       </Link>
-                      <Link
-                        href="/buyer/orders"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
-                      >
-                        <UserCircle className="h-4 w-4" />
-                        Mis Compras
-                      </Link>
                       <div className="my-1 border-t border-surface-100" />
                       <button
                         onClick={() => {
-                          setIsLoggedIn(false);
+                          logout();
                           setUserDropdownOpen(false);
+                          window.location.href = "/";
                         }}
                         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50"
                       >
@@ -205,17 +201,6 @@ export default function Header() {
                         <UserPlus className="h-4 w-4" />
                         Registrarse
                       </Link>
-                      <div className="my-1 border-t border-surface-100" />
-                      <button
-                        onClick={() => {
-                          setIsLoggedIn(true);
-                          setUserDropdownOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-primary-600 transition-colors hover:bg-primary-50"
-                      >
-                        <User className="h-4 w-4" />
-                        Simular Login
-                      </button>
                     </>
                   )}
                 </div>
