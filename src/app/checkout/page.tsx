@@ -1,0 +1,487 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import {
+  ShoppingCart,
+  CreditCard,
+  CheckCircle2,
+  QrCode,
+  Smartphone,
+  Lock,
+  Shield,
+  Headphones,
+  ArrowLeft,
+  ChevronRight,
+  Globe,
+} from "lucide-react";
+import { Header, Footer } from "@/components/layout";
+import { useApp } from "@/context/AppContext";
+import { cn, formatCurrency } from "@/lib/utils";
+import type { PaymentMethod } from "@/types";
+
+const steps = [
+  { number: 1, label: "Carrito", icon: ShoppingCart },
+  { number: 2, label: "Pago", icon: CreditCard },
+  { number: 3, label: "Confirmacion", icon: CheckCircle2 },
+];
+
+interface PaymentOption {
+  id: PaymentMethod;
+  label: string;
+  description: string;
+  icon: typeof QrCode;
+  recommended?: boolean;
+}
+
+const paymentOptions: PaymentOption[] = [
+  {
+    id: "qr_bolivia",
+    label: "QR Bolivia",
+    description: "Paga con tu app bancaria boliviana",
+    icon: QrCode,
+    recommended: true,
+  },
+  {
+    id: "stripe",
+    label: "Tarjeta de credito",
+    description: "Visa, Mastercard, American Express",
+    icon: CreditCard,
+  },
+  {
+    id: "paypal",
+    label: "PayPal",
+    description: "Redirigir a PayPal para completar el pago",
+    icon: Globe,
+  },
+];
+
+export default function CheckoutPage() {
+  const { cartItems, cartTotalItems, cartTotalAmount } = useApp();
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>("qr_bolivia");
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Mock card inputs
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+
+  const currentStep = 2;
+
+  const handleConfirmPayment = () => {
+    setIsProcessing(true);
+    setTimeout(() => {
+      window.location.href = "/checkout/success";
+    }, 1500);
+  };
+
+  if (cartItems.length === 0) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-[calc(100vh-4rem)] bg-surface-50">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+            <div className="flex flex-col items-center justify-center text-center">
+              <div className="inline-flex items-center justify-center rounded-2xl bg-surface-100 p-5 text-surface-400 mb-6">
+                <ShoppingCart className="h-10 w-10" />
+              </div>
+              <h2 className="text-2xl font-bold text-surface-900">
+                No hay productos en tu carrito
+              </h2>
+              <p className="mt-2 max-w-sm text-sm text-surface-500 leading-relaxed">
+                Agrega productos a tu carrito antes de proceder al pago.
+              </p>
+              <Link
+                href="/products"
+                className="mt-8 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm shadow-primary-600/25 transition-all duration-200 hover:bg-primary-700"
+              >
+                Explorar productos
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Header />
+      <main className="min-h-[calc(100vh-4rem)] bg-surface-50">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+          {/* Step Indicator */}
+          <div className="mb-10">
+            <div className="flex items-center justify-center">
+              {steps.map((step, index) => {
+                const StepIcon = step.icon;
+                const isActive = step.number === currentStep;
+                const isCompleted = step.number < currentStep;
+
+                return (
+                  <div key={step.number} className="flex items-center">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300",
+                          isCompleted
+                            ? "border-accent-500 bg-accent-500 text-white"
+                            : isActive
+                            ? "border-primary-500 bg-primary-500 text-white shadow-md shadow-primary-500/25"
+                            : "border-surface-300 bg-white text-surface-400"
+                        )}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5" />
+                        ) : (
+                          <StepIcon className="h-5 w-5" />
+                        )}
+                      </div>
+                      <span
+                        className={cn(
+                          "mt-2 text-xs font-medium",
+                          isActive
+                            ? "text-primary-600"
+                            : isCompleted
+                            ? "text-accent-600"
+                            : "text-surface-400"
+                        )}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={cn(
+                          "mx-3 sm:mx-6 h-0.5 w-12 sm:w-20 transition-colors duration-300 mb-6",
+                          step.number < currentStep
+                            ? "bg-accent-500"
+                            : "bg-surface-200"
+                        )}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Payment Section */}
+            <div className="flex-1 space-y-6">
+              {/* Back Link */}
+              <Link
+                href="/cart"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-surface-500 hover:text-surface-700 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Volver al carrito
+              </Link>
+
+              {/* Payment Method Selection */}
+              <div>
+                <h2 className="text-lg font-bold text-surface-900 mb-4">
+                  Metodo de pago
+                </h2>
+                <div className="space-y-3">
+                  {paymentOptions.map((option) => {
+                    const OptionIcon = option.icon;
+                    const isSelected = selectedPayment === option.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedPayment(option.id)}
+                        className={cn(
+                          "relative flex w-full items-center gap-4 rounded-xl border-2 p-4 text-left transition-all duration-200 cursor-pointer",
+                          isSelected
+                            ? "border-primary-500 bg-primary-50/50 shadow-sm shadow-primary-500/10"
+                            : "border-surface-200 bg-white hover:border-surface-300 hover:shadow-sm"
+                        )}
+                      >
+                        {/* Radio indicator */}
+                        <div
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all",
+                            isSelected
+                              ? "border-primary-500"
+                              : "border-surface-300"
+                          )}
+                        >
+                          {isSelected && (
+                            <div className="h-2.5 w-2.5 rounded-full bg-primary-500" />
+                          )}
+                        </div>
+
+                        <div
+                          className={cn(
+                            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors",
+                            isSelected
+                              ? "bg-primary-100 text-primary-600"
+                              : "bg-surface-100 text-surface-500"
+                          )}
+                        >
+                          <OptionIcon className="h-5 w-5" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-surface-900">
+                              {option.label}
+                            </p>
+                            {option.recommended && (
+                              <span className="rounded-md bg-accent-100 px-2 py-0.5 text-xs font-medium text-accent-700">
+                                Recomendado
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-surface-500 mt-0.5">
+                            {option.description}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Payment Details based on selection */}
+              <div className="rounded-xl border border-surface-200 bg-white p-6 shadow-sm">
+                {selectedPayment === "qr_bolivia" && (
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-surface-700">
+                      <Smartphone className="h-4 w-4 text-primary-500" />
+                      Pago con QR Bolivia
+                    </div>
+                    {/* Mock QR Code */}
+                    <div className="relative flex items-center justify-center w-56 h-56 rounded-2xl bg-white border-2 border-surface-200 p-4">
+                      <div className="w-full h-full rounded-lg bg-surface-100 flex items-center justify-center">
+                        <div className="grid grid-cols-8 gap-0.5 p-4">
+                          {Array.from({ length: 64 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "w-3 h-3 rounded-[2px]",
+                                Math.random() > 0.4
+                                  ? "bg-surface-800"
+                                  : "bg-white"
+                              )}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-white rounded-lg p-1.5 shadow-sm">
+                          <QrCode className="h-6 w-6 text-primary-600" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-surface-700">
+                        Escanea el codigo QR con tu app bancaria
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Compatible con todos los bancos bolivianos que soporten QR
+                      </p>
+                    </div>
+                    <div className="text-2xl font-bold text-primary-600">
+                      {formatCurrency(cartTotalAmount)}
+                    </div>
+                  </div>
+                )}
+
+                {selectedPayment === "stripe" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-surface-700 mb-2">
+                      <CreditCard className="h-4 w-4 text-primary-500" />
+                      Datos de la tarjeta
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                        Numero de tarjeta
+                      </label>
+                      <input
+                        type="text"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        placeholder="4242 4242 4242 4242"
+                        maxLength={19}
+                        className="block w-full rounded-lg border border-surface-300 bg-white py-2.5 px-3.5 text-sm text-surface-900 placeholder:text-surface-400 transition-all duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                          Fecha de expiracion
+                        </label>
+                        <input
+                          type="text"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                          placeholder="MM / AA"
+                          maxLength={7}
+                          className="block w-full rounded-lg border border-surface-300 bg-white py-2.5 px-3.5 text-sm text-surface-900 placeholder:text-surface-400 transition-all duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                          CVV
+                        </label>
+                        <input
+                          type="text"
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value)}
+                          placeholder="123"
+                          maxLength={4}
+                          className="block w-full rounded-lg border border-surface-300 bg-white py-2.5 px-3.5 text-sm text-surface-900 placeholder:text-surface-400 transition-all duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-surface-400 mt-2">
+                      <Lock className="h-3.5 w-3.5" />
+                      Tus datos estan encriptados y seguros
+                    </div>
+                  </div>
+                )}
+
+                {selectedPayment === "paypal" && (
+                  <div className="flex flex-col items-center text-center space-y-4 py-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                      <Globe className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-surface-700">
+                        Seras redirigido a PayPal
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Inicia sesion en tu cuenta de PayPal para completar el pago de forma segura.
+                      </p>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatCurrency(cartTotalAmount)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Security Badges */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="flex flex-col items-center gap-2 rounded-xl bg-white border border-surface-200 p-4 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <p className="text-xs font-medium text-surface-700">Pago seguro</p>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-xl bg-white border border-surface-200 p-4 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <p className="text-xs font-medium text-surface-700">Codigo protegido</p>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-xl bg-white border border-surface-200 p-4 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-50 text-surface-600">
+                    <Headphones className="h-5 w-5" />
+                  </div>
+                  <p className="text-xs font-medium text-surface-700">Soporte 24/7</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Summary Sidebar */}
+            <div className="lg:w-96 shrink-0">
+              <div className="sticky top-24 rounded-xl border border-surface-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-surface-900 mb-5">
+                  Resumen del pedido
+                </h2>
+
+                {/* Items */}
+                <div className="space-y-3 mb-5">
+                  {cartItems.map(({ product, quantity }) => (
+                    <div key={product.id} className="flex items-center gap-3">
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-surface-100">
+                        <Image
+                          src={product.image}
+                          alt={product.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-surface-900 truncate">
+                          {product.name}
+                        </p>
+                        <p className="text-xs text-surface-500">
+                          Cant: {quantity}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-surface-900 shrink-0">
+                        {formatCurrency(product.price * quantity)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-surface-200 pt-4 space-y-2.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-surface-600">Subtotal</span>
+                    <span className="font-medium text-surface-900">
+                      {formatCurrency(cartTotalAmount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-surface-600">Procesamiento</span>
+                    <span className="font-medium text-accent-600">Gratis</span>
+                  </div>
+                  <div className="border-t border-surface-200 pt-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-surface-900">
+                        Total
+                      </span>
+                      <span className="text-xl font-bold text-primary-600">
+                        {formatCurrency(cartTotalAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Confirm Payment Button */}
+                <button
+                  type="button"
+                  onClick={handleConfirmPayment}
+                  disabled={isProcessing}
+                  className={cn(
+                    "mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-primary-600/25 transition-all duration-200",
+                    "hover:bg-primary-700 active:bg-primary-800",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
+                    "disabled:opacity-50 disabled:pointer-events-none",
+                    "cursor-pointer"
+                  )}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Procesando pago...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4" />
+                      Confirmar Pago
+                    </>
+                  )}
+                </button>
+
+                <p className="mt-3 text-center text-xs text-surface-400">
+                  Al confirmar, aceptas nuestros terminos de servicio
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </>
+  );
+}

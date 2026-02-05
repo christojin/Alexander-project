@@ -1,0 +1,58 @@
+import { Category } from "@/types";
+
+export const categories: Category[] = [
+  {
+    id: "cat-1",
+    name: "Streaming",
+    slug: "streaming",
+    description: "Gift cards para plataformas de streaming como Netflix, Spotify, Disney+",
+    icon: "Tv",
+    productCount: 24,
+    isActive: true,
+  },
+  {
+    id: "cat-2",
+    name: "Gaming",
+    slug: "gaming",
+    description: "Codigos y tarjetas para PlayStation, Xbox, Steam, Nintendo",
+    icon: "Gamepad2",
+    productCount: 38,
+    isActive: true,
+  },
+  {
+    id: "cat-3",
+    name: "Juegos Moviles",
+    slug: "juegos-moviles",
+    description: "Recargas y diamantes para Free Fire, PUBG, Mobile Legends",
+    icon: "Smartphone",
+    productCount: 15,
+    isActive: true,
+  },
+  {
+    id: "cat-4",
+    name: "Tiendas Online",
+    slug: "tiendas-online",
+    description: "Gift cards para Amazon, eBay, AliExpress y mas",
+    icon: "ShoppingBag",
+    productCount: 12,
+    isActive: true,
+  },
+  {
+    id: "cat-5",
+    name: "Software",
+    slug: "software",
+    description: "Licencias y suscripciones de software y aplicaciones",
+    icon: "Monitor",
+    productCount: 8,
+    isActive: true,
+  },
+  {
+    id: "cat-6",
+    name: "Redes Sociales",
+    slug: "redes-sociales",
+    description: "Tarjetas y creditos para servicios de redes sociales",
+    icon: "Share2",
+    productCount: 6,
+    isActive: true,
+  },
+];
