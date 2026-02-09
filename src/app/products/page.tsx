@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
@@ -10,12 +11,18 @@ import { products, categories } from "@/data/mock";
 
 type SortOption = "popular" | "price_asc" | "price_desc" | "newest";
 
-export default function ProductsPage() {
+function ProductsContent() {
   const { addToCart } = useApp();
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q) setSearchQuery(q);
+  }, [searchParams]);
 
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => p.isActive);
@@ -61,9 +68,7 @@ export default function ProductsPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-surface-50">
-      <Header />
-
+    <>
       {/* Page Header */}
       <div className="bg-white border-b border-surface-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -194,7 +199,17 @@ export default function ProductsPage() {
         {/* Products Grid */}
         <ProductGrid products={filteredProducts} onAddToCart={addToCart} />
       </div>
+    </>
+  );
+}
 
+export default function ProductsPage() {
+  return (
+    <div className="min-h-screen bg-surface-50">
+      <Header />
+      <Suspense>
+        <ProductsContent />
+      </Suspense>
       <Footer />
     </div>
   );

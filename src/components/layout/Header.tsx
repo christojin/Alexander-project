@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Shield,
   Search,
@@ -30,6 +31,7 @@ const navLinks: NavLink[] = [
 
 export default function Header() {
   const { user, isAuthenticated, logout, cartTotalItems } = useApp();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -64,8 +66,9 @@ export default function Header() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // Search action placeholder
-      console.log("Search:", searchQuery);
+      router.push(`/products?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+      setMobileMenuOpen(false);
     }
   };
 

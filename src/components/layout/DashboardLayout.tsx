@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Bell,
   Menu,
   X,
   UserCircle,
+  ShoppingBag,
+  AlertTriangle,
+  MessageSquare,
+  CheckCircle2,
 } from "lucide-react";
 import Sidebar from "./Sidebar";
 
@@ -22,8 +26,68 @@ const roleGreeting: Record<Role, string> = {
   admin: "Administrador",
 };
 
+interface Notification {
+  id: string;
+  icon: "order" | "alert" | "message" | "success";
+  title: string;
+  description: string;
+  time: string;
+  read: boolean;
+}
+
+const mockNotifications: Record<Role, Notification[]> = {
+  buyer: [
+    { id: "n1", icon: "success", title: "Pedido entregado", description: "Tu codigo de Netflix ha sido enviado a tu correo.", time: "Hace 5 min", read: false },
+    { id: "n2", icon: "order", title: "Nuevo pedido confirmado", description: "Pedido ORD-001 procesado exitosamente.", time: "Hace 1 hora", read: false },
+    { id: "n3", icon: "message", title: "Respuesta en ticket", description: "El vendedor respondio a tu consulta.", time: "Hace 3 horas", read: true },
+  ],
+  seller: [
+    { id: "n1", icon: "order", title: "Nueva venta", description: "Has vendido 1x Spotify Premium 3 meses.", time: "Hace 10 min", read: false },
+    { id: "n2", icon: "message", title: "Nuevo ticket de soporte", description: "Un comprador abrio un reclamo.", time: "Hace 2 horas", read: false },
+    { id: "n3", icon: "success", title: "Retiro procesado", description: "Tu retiro de $150.00 fue aprobado.", time: "Hace 1 dia", read: true },
+  ],
+  admin: [
+    { id: "n1", icon: "alert", title: "Compra de alto valor", description: "Pedido de $750 requiere revision manual.", time: "Hace 15 min", read: false },
+    { id: "n2", icon: "order", title: "Nuevo vendedor registrado", description: "GameStore Bolivia solicita aprobacion.", time: "Hace 1 hora", read: false },
+    { id: "n3", icon: "message", title: "Ticket escalado", description: "Ticket TK-003 marcado como urgente.", time: "Hace 4 horas", read: true },
+  ],
+};
+
+const notificationIcons = {
+  order: ShoppingBag,
+  alert: AlertTriangle,
+  message: MessageSquare,
+  success: CheckCircle2,
+};
+
+const notificationIconColors = {
+  order: "bg-primary-100 text-primary-600",
+  alert: "bg-amber-100 text-amber-600",
+  message: "bg-blue-100 text-blue-600",
+  success: "bg-green-100 text-green-600",
+};
+
 export default function DashboardLayout({ role, children }: DashboardLayoutProps) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(mockNotifications[role]);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const markAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-50">
@@ -82,13 +146,69 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
 
           <div className="flex items-center gap-2">
             {/* Notifications */}
-            <button
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700"
-              aria-label="Notificaciones"
-            >
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-500" />
-            </button>
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700"
+                aria-label="Notificaciones"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-[9px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 origin-top-right rounded-xl border border-surface-200 bg-white shadow-xl z-50">
+                  <div className="flex items-center justify-between border-b border-surface-100 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-surface-900">Notificaciones</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                      >
+                        Marcar todo como leido
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto divide-y divide-surface-100">
+                    {notifications.map((notif) => {
+                      const IconComp = notificationIcons[notif.icon];
+                      const iconColor = notificationIconColors[notif.icon];
+                      return (
+                        <div
+                          key={notif.id}
+                          className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-50 ${!notif.read ? "bg-primary-50/30" : ""}`}
+                        >
+                          <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
+                            <IconComp className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm leading-snug ${!notif.read ? "font-semibold text-surface-900" : "font-medium text-surface-700"}`}>
+                              {notif.title}
+                            </p>
+                            <p className="mt-0.5 text-xs text-surface-500 leading-snug">
+                              {notif.description}
+                            </p>
+                            <p className="mt-1 text-[11px] text-surface-400">{notif.time}</p>
+                          </div>
+                          {!notif.read && (
+                            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-surface-100 px-4 py-2.5 text-center">
+                    <button className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors">
+                      Ver todas las notificaciones
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User Avatar / Name */}
             <div className="ml-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-50">

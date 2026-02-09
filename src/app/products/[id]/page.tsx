@@ -20,6 +20,10 @@ import {
   Globe,
   Store,
   Package,
+  Tv,
+  Gift,
+  Mail,
+  Lock,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
@@ -127,10 +131,21 @@ export default function ProductDetailPage() {
                 </p>
               </div>
               <div className="bg-white border border-surface-200 rounded-xl p-4 text-center">
-                <Shield className="w-6 h-6 text-primary-500 mx-auto mb-2" />
-                <p className="text-xs font-medium text-surface-700">
-                  Codigo protegido
-                </p>
+                {product.productType === "streaming" ? (
+                  <>
+                    <Lock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                    <p className="text-xs font-medium text-surface-700">
+                      Credenciales seguras
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-6 h-6 text-primary-500 mx-auto mb-2" />
+                    <p className="text-xs font-medium text-surface-700">
+                      Codigo protegido
+                    </p>
+                  </>
+                )}
               </div>
               <div className="bg-white border border-surface-200 rounded-xl p-4 text-center">
                 <QrCode className="w-6 h-6 text-primary-500 mx-auto mb-2" />
@@ -139,6 +154,31 @@ export default function ProductDetailPage() {
                 </p>
               </div>
             </div>
+
+            {/* Delivery Info by Type */}
+            <div className="bg-white border border-surface-200 rounded-xl p-4">
+              {product.productType === "streaming" ? (
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-surface-700">Entrega de credenciales</p>
+                    <p className="text-xs text-surface-500 mt-1">
+                      Al completar la compra recibiras correo, usuario, contrasena y fecha de expiracion de tu cuenta.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <Gift className="w-5 h-5 text-sky-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-surface-700">Entrega de codigos</p>
+                    <p className="text-xs text-surface-500 mt-1">
+                      Al completar la compra recibiras tus codigos digitales protegidos, listos para canjear.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Product Info */}
@@ -146,6 +186,14 @@ export default function ProductDetailPage() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-sm font-medium text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
                 {product.categoryName}
+              </span>
+              <span className={`text-sm font-medium px-3 py-1 rounded-full flex items-center gap-1.5 ${
+                product.productType === "streaming"
+                  ? "text-amber-600 bg-amber-50"
+                  : "text-sky-600 bg-sky-50"
+              }`}>
+                {product.productType === "streaming" ? <Tv className="w-3.5 h-3.5" /> : <Gift className="w-3.5 h-3.5" />}
+                {product.productType === "streaming" ? "Streaming" : "Gift Card"}
               </span>
               {product.isFeatured && (
                 <span className="text-sm font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full flex items-center gap-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   DollarSign,
   Percent,
@@ -8,6 +8,9 @@ import {
   Clock,
   BarChart3,
   Info,
+  ArrowDownToLine,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { StatsCard, Badge } from "@/components/ui";
@@ -31,6 +34,11 @@ const monthlyEarningsData = [
 ];
 
 export default function SellerEarningsPage() {
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawMethod, setWithdrawMethod] = useState("qr_bolivia");
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+
   const sellerOrders = useMemo(
     () => orders.filter((o) => o.sellerId === SELLER_ID),
     []
@@ -63,17 +71,38 @@ export default function SellerEarningsPage() {
     ...monthlyEarningsData.map((d) => d.earnings)
   );
 
+  const handleWithdraw = () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!amount || amount <= 0 || amount > netBalance) return;
+    setWithdrawSuccess(true);
+    setTimeout(() => {
+      setWithdrawSuccess(false);
+      setWithdrawAmount("");
+      setWithdrawMethod("qr_bolivia");
+      setWithdrawModalOpen(false);
+    }, 2500);
+  };
+
   return (
     <DashboardLayout role="seller">
       <div className="space-y-8">
         {/* Page Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-surface-900 tracking-tight">
-            Ganancias
-          </h1>
-          <p className="mt-1 text-sm text-surface-500">
-            Resumen financiero de tu tienda
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-surface-900 tracking-tight">
+              Ganancias
+            </h1>
+            <p className="mt-1 text-sm text-surface-500">
+              Resumen financiero de tu tienda
+            </p>
+          </div>
+          <button
+            onClick={() => setWithdrawModalOpen(true)}
+            className="flex items-center gap-2 self-start rounded-lg bg-accent-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-700 active:bg-accent-800"
+          >
+            <ArrowDownToLine className="h-4 w-4" />
+            Solicitar Retiro
+          </button>
         </div>
 
         {/* Summary Cards */}
@@ -264,6 +293,122 @@ export default function SellerEarningsPage() {
           </div>
         </div>
       </div>
+
+      {/* Withdrawal Request Modal */}
+      {withdrawModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-surface-900/50 backdrop-blur-sm"
+            onClick={() => {
+              if (!withdrawSuccess) {
+                setWithdrawModalOpen(false);
+                setWithdrawAmount("");
+                setWithdrawMethod("qr_bolivia");
+              }
+            }}
+          />
+          <div className="relative w-full max-w-md rounded-2xl border border-surface-200 bg-white shadow-2xl">
+            {withdrawSuccess ? (
+              <div className="px-6 py-10 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                  <CheckCircle2 className="h-7 w-7 text-green-600" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-surface-900">
+                  Solicitud enviada
+                </h3>
+                <p className="mt-2 text-sm text-surface-500">
+                  Tu solicitud de retiro por {formatCurrency(parseFloat(withdrawAmount))} ha sido enviada. El administrador la revisara en las proximas 24 horas.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4">
+                  <h2 className="text-lg font-semibold text-surface-900">
+                    Solicitar retiro
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setWithdrawModalOpen(false);
+                      setWithdrawAmount("");
+                      setWithdrawMethod("qr_bolivia");
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-600"
+                  >
+                    <X className="h-4.5 w-4.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-5 px-6 py-5">
+                  <div className="rounded-lg bg-accent-50 border border-accent-200 px-4 py-3">
+                    <p className="text-xs font-medium text-accent-600">Balance disponible</p>
+                    <p className="text-2xl font-bold text-accent-700">{formatCurrency(netBalance)}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                      Monto a retirar (USD)
+                    </label>
+                    <input
+                      type="number"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.00"
+                      min="1"
+                      max={netBalance}
+                      step="0.01"
+                      className="w-full rounded-lg border border-surface-200 bg-white px-3.5 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 outline-none transition-colors focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                    />
+                    {parseFloat(withdrawAmount) > netBalance && (
+                      <p className="mt-1 text-xs text-red-500">
+                        El monto no puede superar tu balance disponible.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                      Metodo de pago
+                    </label>
+                    <select
+                      value={withdrawMethod}
+                      onChange={(e) => setWithdrawMethod(e.target.value)}
+                      className="w-full rounded-lg border border-surface-200 bg-white px-3.5 py-2.5 text-sm text-surface-900 outline-none transition-colors focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                    >
+                      <option value="qr_bolivia">QR Bolivia</option>
+                      <option value="bank_transfer">Transferencia Bancaria</option>
+                      <option value="paypal">PayPal</option>
+                    </select>
+                  </div>
+
+                  <p className="text-xs text-surface-400">
+                    El retiro sera procesado en 24-48 horas habiles.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 border-t border-surface-100 px-6 py-4">
+                  <button
+                    onClick={() => {
+                      setWithdrawModalOpen(false);
+                      setWithdrawAmount("");
+                      setWithdrawMethod("qr_bolivia");
+                    }}
+                    className="rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > netBalance}
+                    className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-surface-200 disabled:text-surface-400"
+                  >
+                    Confirmar retiro
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

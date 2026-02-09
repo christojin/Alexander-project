@@ -39,6 +39,8 @@ export interface DigitalCode {
   orderId?: string;
 }
 
+export type ProductType = "streaming" | "gift_card";
+
 export interface Product {
   id: string;
   name: string;
@@ -60,6 +62,7 @@ export interface Product {
   isActive: boolean;
   isFeatured: boolean;
   deliveryType: "instant" | "manual";
+  productType: ProductType;
   createdAt: string;
 }
 
@@ -72,6 +75,13 @@ export type OrderStatus = "pending" | "processing" | "completed" | "cancelled" |
 export type PaymentMethod = "qr_bolivia" | "stripe" | "paypal";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
 
+export interface StreamingCredentials {
+  email: string;
+  username: string;
+  password: string;
+  expirationDate: string;
+}
+
 export interface Order {
   id: string;
   buyerId: string;
@@ -82,6 +92,7 @@ export interface Order {
   productId: string;
   productName: string;
   productImage: string;
+  productType: ProductType;
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -92,6 +103,7 @@ export interface Order {
   paymentStatus: PaymentStatus;
   status: OrderStatus;
   digitalCodes: string[];
+  streamingCredentials?: StreamingCredentials;
   createdAt: string;
   completedAt?: string;
 }

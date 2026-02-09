@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingCart, Star, Zap, Shield } from "lucide-react";
+import { ShoppingCart, Star, Zap, Shield, Tv, Gift } from "lucide-react";
 import { Product } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -43,6 +43,15 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
           <span className="text-xs font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
             {product.categoryName}
           </span>
+          <span className={cn(
+            "text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1",
+            product.productType === "streaming"
+              ? "text-amber-600 bg-amber-50"
+              : "text-sky-600 bg-sky-50"
+          )}>
+            {product.productType === "streaming" ? <Tv className="w-3 h-3" /> : <Gift className="w-3 h-3" />}
+            {product.productType === "streaming" ? "Streaming" : "Gift Card"}
+          </span>
           <span className="text-xs text-surface-400">{product.region}</span>
         </div>
 
@@ -68,10 +77,21 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
           <span className="text-xs text-accent-600 font-medium">
             Entrega instantanea
           </span>
-          <Shield className="w-3.5 h-3.5 text-primary-400 ml-1" />
-          <span className="text-xs text-primary-500 font-medium">
-            Codigo protegido
-          </span>
+          {product.productType === "streaming" ? (
+            <>
+              <Tv className="w-3.5 h-3.5 text-amber-500 ml-1" />
+              <span className="text-xs text-amber-600 font-medium">
+                Credenciales
+              </span>
+            </>
+          ) : (
+            <>
+              <Shield className="w-3.5 h-3.5 text-primary-400 ml-1" />
+              <span className="text-xs text-primary-500 font-medium">
+                Codigo protegido
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex items-end justify-between">

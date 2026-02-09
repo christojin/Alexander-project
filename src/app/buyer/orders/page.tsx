@@ -15,6 +15,12 @@ import {
   Calendar,
   Store,
   ShoppingBag,
+  Tv,
+  Gift,
+  Mail,
+  User,
+  Lock,
+  CalendarDays,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { orders } from "@/data/mock/orders";
@@ -281,54 +287,111 @@ export default function BuyerOrdersPage() {
                           </div>
                         </div>
 
-                        {/* Digital Codes */}
-                        <div className="rounded-lg border border-surface-200 bg-white p-4">
-                          <h4 className="text-sm font-semibold text-surface-800 mb-3">
-                            Codigos digitales
-                          </h4>
-                          {order.status === "completed" &&
-                          order.digitalCodes.length > 0 ? (
-                            <div className="space-y-2">
-                              {order.digitalCodes.map((code, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-surface-200 bg-surface-50 px-4 py-2.5"
-                                >
-                                  <code className="text-sm font-mono text-surface-700 break-all">
-                                    {isRevealed ? code : maskCode(code)}
-                                  </code>
-                                  <button
-                                    onClick={() =>
-                                      toggleRevealCode(order.id)
-                                    }
-                                    className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50"
+                        {/* Delivery Info - type-specific */}
+                        {order.productType === "streaming" ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+                            <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-800 mb-3">
+                              <Tv className="h-4 w-4 text-amber-500" />
+                              Credenciales de streaming
+                            </h4>
+                            {order.status === "completed" && order.streamingCredentials ? (
+                              <div className="space-y-2">
+                                {[
+                                  { icon: <Mail className="h-3.5 w-3.5" />, label: "Correo", value: order.streamingCredentials.email },
+                                  { icon: <User className="h-3.5 w-3.5" />, label: "Usuario", value: order.streamingCredentials.username },
+                                  { icon: <Lock className="h-3.5 w-3.5" />, label: "Contrasena", value: order.streamingCredentials.password },
+                                  { icon: <CalendarDays className="h-3.5 w-3.5" />, label: "Expira", value: formatDate(order.streamingCredentials.expirationDate) },
+                                ].map((field) => (
+                                  <div
+                                    key={field.label}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5"
                                   >
-                                    {isRevealed ? (
-                                      <>
-                                        <EyeOff className="h-3.5 w-3.5" />
-                                        Ocultar
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Eye className="h-3.5 w-3.5" />
-                                        Revelar
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : order.digitalCodes.length === 0 ? (
-                            <p className="text-sm text-surface-500 italic">
-                              Aun no hay codigos disponibles para este pedido.
-                            </p>
-                          ) : (
-                            <p className="text-sm text-surface-500 italic">
-                              Los codigos estaran disponibles cuando el pedido
-                              sea completado.
-                            </p>
-                          )}
-                        </div>
+                                    <div className="flex items-center gap-2 text-xs text-surface-500">
+                                      {field.icon}
+                                      {field.label}
+                                    </div>
+                                    <code className="text-sm font-mono text-surface-700">
+                                      {field.label === "Contrasena"
+                                        ? isRevealed
+                                          ? field.value
+                                          : "••••••••"
+                                        : field.value}
+                                    </code>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => toggleRevealCode(order.id)}
+                                  className="mt-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50"
+                                >
+                                  {isRevealed ? (
+                                    <>
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                      Ocultar contrasena
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="h-3.5 w-3.5" />
+                                      Revelar contrasena
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-surface-500 italic">
+                                Las credenciales estaran disponibles cuando el pedido sea completado.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-surface-200 bg-white p-4">
+                            <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-800 mb-3">
+                              <Gift className="h-4 w-4 text-sky-500" />
+                              Codigos digitales
+                            </h4>
+                            {order.status === "completed" &&
+                            order.digitalCodes.length > 0 ? (
+                              <div className="space-y-2">
+                                {order.digitalCodes.map((code, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-surface-200 bg-surface-50 px-4 py-2.5"
+                                  >
+                                    <code className="text-sm font-mono text-surface-700 break-all">
+                                      {isRevealed ? code : maskCode(code)}
+                                    </code>
+                                    <button
+                                      onClick={() =>
+                                        toggleRevealCode(order.id)
+                                      }
+                                      className="flex items-center gap-1.5 self-end sm:self-auto shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50"
+                                    >
+                                      {isRevealed ? (
+                                        <>
+                                          <EyeOff className="h-3.5 w-3.5" />
+                                          Ocultar
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Eye className="h-3.5 w-3.5" />
+                                          Revelar
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : order.digitalCodes.length === 0 ? (
+                              <p className="text-sm text-surface-500 italic">
+                                Aun no hay codigos disponibles para este pedido.
+                              </p>
+                            ) : (
+                              <p className="text-sm text-surface-500 italic">
+                                Los codigos estaran disponibles cuando el pedido
+                                sea completado.
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Action: Open Ticket */}
                         <div className="flex justify-end">

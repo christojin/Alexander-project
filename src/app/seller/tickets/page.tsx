@@ -12,6 +12,9 @@ import {
   AlertCircle,
   User,
   Store,
+  Paperclip,
+  ImageIcon,
+  X as XIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { Button, Tabs, Badge, EmptyState } from "@/components/ui";
@@ -52,6 +55,7 @@ export default function SellerTicketsPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
+  const [attachedFiles, setAttachedFiles] = useState<Record<string, string[]>>({});
   const messagesEndRef = useRef<Record<string, HTMLDivElement | null>>({});
 
   const tabsWithCounts = useMemo(() => {
@@ -77,6 +81,23 @@ export default function SellerTicketsPage() {
 
   const toggleExpand = (ticketId: string) => {
     setExpandedTicket((prev) => (prev === ticketId ? null : ticketId));
+  };
+
+  const handleAttachFile = (ticketId: string) => {
+    const demoFiles = ["captura_pantalla.png", "comprobante_pago.jpg", "evidencia.png", "foto_error.jpg"];
+    const existing = attachedFiles[ticketId] || [];
+    const nextFile = demoFiles[existing.length % demoFiles.length];
+    setAttachedFiles((prev) => ({
+      ...prev,
+      [ticketId]: [...(prev[ticketId] || []), nextFile],
+    }));
+  };
+
+  const removeAttachedFile = (ticketId: string, index: number) => {
+    setAttachedFiles((prev) => ({
+      ...prev,
+      [ticketId]: (prev[ticketId] || []).filter((_, i) => i !== index),
+    }));
   };
 
   const handleReply = (ticketId: string) => {
@@ -325,20 +346,51 @@ export default function SellerTicketsPage() {
                                     }
                                   }}
                                 />
+                                {/* Attached files */}
+                                {(attachedFiles[ticket.id] || []).length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {attachedFiles[ticket.id].map((file, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 px-3 py-1 text-xs text-primary-700"
+                                      >
+                                        <ImageIcon className="h-3 w-3" />
+                                        {file}
+                                        <button
+                                          onClick={() => removeAttachedFile(ticket.id, idx)}
+                                          className="ml-0.5 text-primary-400 hover:text-primary-700 transition-colors"
+                                          type="button"
+                                        >
+                                          <XIcon className="h-3 w-3" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <p className="mt-1 text-xs text-surface-400">
                                   Ctrl + Enter para enviar
                                 </p>
                               </div>
-                              <Button
-                                size="md"
-                                iconLeft={<Send />}
-                                onClick={() => handleReply(ticket.id)}
-                                disabled={
-                                  !replyInputs[ticket.id]?.trim()
-                                }
-                              >
-                                Enviar
-                              </Button>
+                              <div className="flex flex-col gap-1">
+                                <button
+                                  onClick={() => handleAttachFile(ticket.id)}
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-600"
+                                  aria-label="Adjuntar archivo"
+                                  type="button"
+                                >
+                                  <Paperclip className="h-4 w-4" />
+                                </button>
+                                <Button
+                                  size="md"
+                                  iconLeft={<Send />}
+                                  onClick={() => handleReply(ticket.id)}
+                                  disabled={
+                                    !replyInputs[ticket.id]?.trim()
+                                  }
+                                >
+                                  Enviar
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}

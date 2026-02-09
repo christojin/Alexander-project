@@ -3,9 +3,9 @@ import { Product } from "@/types";
 export const products: Product[] = [
   {
     id: "prod-1",
-    name: "Netflix Gift Card $30",
-    slug: "netflix-gift-card-30",
-    description: "Tarjeta de regalo Netflix por $30 USD. Valida para cualquier cuenta Netflix. Se puede usar para pagar suscripciones o agregar saldo a tu cuenta. Entrega instantanea del codigo tras confirmar el pago.",
+    name: "Netflix Premium 1 Mes",
+    slug: "netflix-premium-1-mes",
+    description: "Cuenta Netflix Premium por 1 mes. Pantalla completa 4K, acceso a todo el catalogo. Se entrega correo, usuario, contrasena y fecha de corte.",
     price: 33.50,
     originalPrice: 35.00,
     categoryId: "cat-1",
@@ -22,6 +22,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "streaming",
     createdAt: "2025-12-15T10:00:00Z",
   },
   {
@@ -44,13 +45,14 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2025-12-15T10:00:00Z",
   },
   {
     id: "prod-3",
     name: "Spotify Premium 3 Meses",
     slug: "spotify-premium-3-meses",
-    description: "Codigo de suscripcion Spotify Premium por 3 meses. Musica sin anuncios, descarga offline y calidad superior.",
+    description: "Cuenta Spotify Premium por 3 meses. Musica sin anuncios, descarga offline y calidad superior. Se entrega correo, usuario, contrasena y fecha de corte.",
     price: 28.00,
     originalPrice: 30.00,
     categoryId: "cat-1",
@@ -67,6 +69,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "streaming",
     createdAt: "2025-12-20T08:00:00Z",
   },
   {
@@ -89,6 +92,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2025-12-22T14:00:00Z",
   },
   {
@@ -112,6 +116,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: false,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2025-12-22T14:00:00Z",
   },
   {
@@ -134,6 +139,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-05T09:00:00Z",
   },
   {
@@ -156,6 +162,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-08T11:00:00Z",
   },
   {
@@ -178,6 +185,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: false,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-10T16:00:00Z",
   },
   {
@@ -200,13 +208,14 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: true,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-12T10:00:00Z",
   },
   {
     id: "prod-10",
-    name: "Disney+ 1 Mes",
-    slug: "disney-plus-1-mes",
-    description: "Suscripcion Disney+ por 1 mes. Disfruta de peliculas y series de Disney, Marvel, Star Wars y mas.",
+    name: "Disney+ Premium 1 Mes",
+    slug: "disney-plus-premium-1-mes",
+    description: "Cuenta Disney+ Premium por 1 mes. Disfruta de peliculas y series de Disney, Marvel, Star Wars y mas. Se entrega correo, usuario, contrasena y fecha de corte.",
     price: 9.50,
     categoryId: "cat-1",
     categoryName: "Streaming",
@@ -222,6 +231,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: false,
     deliveryType: "instant",
+    productType: "streaming",
     createdAt: "2026-01-15T12:00:00Z",
   },
   {
@@ -244,6 +254,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: false,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-18T09:00:00Z",
   },
   {
@@ -266,6 +277,7 @@ export const products: Product[] = [
     isActive: true,
     isFeatured: false,
     deliveryType: "instant",
+    productType: "gift_card",
     createdAt: "2026-01-20T14:00:00Z",
   },
 ];

@@ -13,6 +13,13 @@ import {
   CheckCircle2,
   QrCode,
   Wallet,
+  Bell,
+  Mail,
+  MessageCircle,
+  ShoppingBag,
+  AlertTriangle,
+  UserPlus,
+  TicketCheck,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
@@ -27,6 +34,15 @@ export default function AdminSettingsPage() {
 
   const [deliveryDelay, setDeliveryDelay] = useState(30);
   const [highValueThreshold, setHighValueThreshold] = useState(500);
+
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [whatsappNotifs, setWhatsappNotifs] = useState(false);
+  const [notifNewOrder, setNotifNewOrder] = useState(true);
+  const [notifHighValue, setNotifHighValue] = useState(true);
+  const [notifNewSeller, setNotifNewSeller] = useState(true);
+  const [notifTicketEscalated, setNotifTicketEscalated] = useState(true);
+  const [notifWithdrawRequest, setNotifWithdrawRequest] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState("+591 ");
 
   const [footerHtml, setFooterHtml] = useState(
     `<footer style="background-color: #1e293b; color: #cbd5e1; padding: 2rem; text-align: center;">\n  <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: white;">VendorVault</p>\n  <p style="margin: 0; font-size: 0.875rem;">Marketplace de gift cards y codigos digitales</p>\n  <p style="margin: 0.5rem 0 0; font-size: 0.75rem; color: #94a3b8;">2026 VendorVault. Todos los derechos reservados.</p>\n</footer>`
@@ -306,6 +322,138 @@ export default function AdminSettingsPage() {
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Notification Settings */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+              <Bell className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Notificaciones
+              </h2>
+              <p className="text-sm text-slate-500">
+                Configura canales y eventos de notificacion automatica
+              </p>
+            </div>
+          </div>
+
+          {/* Channels */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Canales de notificacion</h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className={cn(
+                "rounded-xl border p-5 transition-all",
+                emailNotifs ? "border-violet-200 bg-violet-50/50" : "border-slate-200 bg-slate-50/50"
+              )}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-900">Email</h4>
+                      <p className="text-sm text-slate-500">Notificaciones por correo electronico</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setEmailNotifs(!emailNotifs)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      emailNotifs ? "bg-violet-500" : "bg-slate-300"
+                    )}
+                  >
+                    <span className={cn(
+                      "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                      emailNotifs ? "translate-x-6" : "translate-x-1"
+                    )} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={cn(
+                "rounded-xl border p-5 transition-all",
+                whatsappNotifs ? "border-green-200 bg-green-50/50" : "border-slate-200 bg-slate-50/50"
+              )}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                      <MessageCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-slate-900">WhatsApp</h4>
+                      <p className="text-sm text-slate-500">Alertas via WhatsApp Business</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setWhatsappNotifs(!whatsappNotifs)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                      whatsappNotifs ? "bg-green-500" : "bg-slate-300"
+                    )}
+                  >
+                    <span className={cn(
+                      "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                      whatsappNotifs ? "translate-x-6" : "translate-x-1"
+                    )} />
+                  </button>
+                </div>
+                {whatsappNotifs && (
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">Numero de WhatsApp</label>
+                    <input
+                      type="text"
+                      value={whatsappNumber}
+                      onChange={(e) => setWhatsappNumber(e.target.value)}
+                      placeholder="+591 7XXXXXXX"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Events */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Eventos que generan notificacion</h3>
+            <div className="space-y-3">
+              {[
+                { label: "Nueva compra realizada", desc: "Notificar al vendedor y admin cuando se realiza una compra", icon: ShoppingBag, color: "text-indigo-500", enabled: notifNewOrder, toggle: setNotifNewOrder },
+                { label: "Compra de alto valor", desc: "Alerta cuando una compra supera el umbral configurado", icon: AlertTriangle, color: "text-amber-500", enabled: notifHighValue, toggle: setNotifHighValue },
+                { label: "Nuevo vendedor registrado", desc: "Notificar al admin cuando un vendedor se registra", icon: UserPlus, color: "text-blue-500", enabled: notifNewSeller, toggle: setNotifNewSeller },
+                { label: "Ticket de soporte escalado", desc: "Alerta cuando un ticket es marcado como urgente", icon: TicketCheck, color: "text-red-500", enabled: notifTicketEscalated, toggle: setNotifTicketEscalated },
+                { label: "Solicitud de retiro", desc: "Notificar cuando un vendedor solicita un retiro de fondos", icon: Wallet, color: "text-emerald-500", enabled: notifWithdrawRequest, toggle: setNotifWithdrawRequest },
+              ].map((event) => {
+                const Icon = event.icon;
+                return (
+                  <div key={event.label} className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Icon className={cn("h-4.5 w-4.5", event.color)} />
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{event.label}</p>
+                        <p className="text-xs text-slate-500">{event.desc}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => event.toggle(!event.enabled)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                        event.enabled ? "bg-violet-500" : "bg-slate-300"
+                      )}
+                    >
+                      <span className={cn(
+                        "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                        event.enabled ? "translate-x-6" : "translate-x-1"
+                      )} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
