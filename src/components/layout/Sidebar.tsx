@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
-  Shield,
   LayoutDashboard,
   ShoppingBag,
   TicketCheck,
@@ -16,6 +17,7 @@ import {
   Percent,
   Plug,
   Settings,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -31,6 +33,8 @@ interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  badge?: string;
+  badgeClass?: string;
 }
 
 const navigationByRole: Record<Role, NavItem[]> = {
@@ -41,6 +45,7 @@ const navigationByRole: Record<Role, NavItem[]> = {
   ],
   seller: [
     { label: "Dashboard", href: "/seller/dashboard", icon: LayoutDashboard },
+    { label: "Verificacion KYC", href: "/seller/kyc", icon: ShieldCheck },
     { label: "Mis Productos", href: "/seller/products", icon: Package },
     { label: "Pedidos", href: "/seller/orders", icon: ClipboardList },
     { label: "Ganancias", href: "/seller/earnings", icon: DollarSign },
@@ -72,11 +77,30 @@ const roleBadgeConfig: Record<Role, { label: string; className: string }> = {
   },
 };
 
+const kycStatusConfig: Record<string, { label: string; className: string }> = {
+  PENDING: { label: "Pendiente", className: "bg-amber-100 text-amber-700" },
+  APPROVED: { label: "Verificado", className: "bg-green-100 text-green-700" },
+  REJECTED: { label: "Rechazado", className: "bg-red-100 text-red-700" },
+  SUSPENDED: { label: "Suspendido", className: "bg-red-100 text-red-700" },
+};
+
 export default function Sidebar({ role }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
-  const navItems = navigationByRole[role];
+  const { data: session } = useSession();
   const badge = roleBadgeConfig[role];
+
+  // Add KYC status badge dynamically for sellers
+  const sellerStatus = session?.user?.sellerStatus;
+  const navItems = navigationByRole[role].map((item) => {
+    if (role === "seller" && item.href === "/seller/kyc" && sellerStatus) {
+      const kycBadge = kycStatusConfig[sellerStatus];
+      if (kycBadge) {
+        return { ...item, badge: kycBadge.label, badgeClass: kycBadge.className };
+      }
+    }
+    return item;
+  });
 
   const isActive = (href: string) => {
     if (href === pathname) return true;
@@ -103,13 +127,22 @@ export default function Sidebar({ role }: SidebarProps) {
             collapsed ? "justify-center w-full" : ""
           }`}
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-600 text-white">
-            <Shield className="h-4.5 w-4.5" />
-          </div>
-          {!collapsed && (
-            <span className="text-lg font-bold text-surface-900 whitespace-nowrap">
-              Vendor<span className="text-primary-600">Vault</span>
-            </span>
+          {collapsed ? (
+            <Image
+              src="/images/brand/logo-icon.png"
+              alt="VirtuMall"
+              width={32}
+              height={32}
+              className="h-8 w-8 shrink-0"
+            />
+          ) : (
+            <Image
+              src="/images/brand/logo-full.png"
+              alt="VirtuMall"
+              width={140}
+              height={35}
+              className="h-8 w-auto"
+            />
           )}
         </Link>
         <button
@@ -179,7 +212,12 @@ export default function Sidebar({ role }: SidebarProps) {
                   {!collapsed && (
                     <span className="text-sm whitespace-nowrap">{item.label}</span>
                   )}
-                  {active && !collapsed && (
+                  {!collapsed && item.badge && (
+                    <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none ${item.badgeClass}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                  {active && !collapsed && !item.badge && (
                     <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-500" />
                   )}
                 </Link>
@@ -193,7 +231,7 @@ export default function Sidebar({ role }: SidebarProps) {
       {!collapsed && (
         <div className="border-t border-surface-100 p-4">
           <p className="text-[11px] text-surface-400">
-            VendorVault v1.0
+            VirtuMall v1.0
           </p>
         </div>
       )}

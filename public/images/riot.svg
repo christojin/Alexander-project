@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Riot Games - raised fist silhouette -->
+  <path d="M20 4H17L15 8V14H13V20L11 24V32L13 36L16 40L18 42H30L32 40L35 36L37 32V24L35 20V14H33V8L31 4H28V10H26V6H22V10H20V4Z" fill="#D32936"/>
+  <!-- Finger gaps as negative space -->
+  <path d="M20 4V10H22V6H26V10H28V4" fill="#D32936"/>
+  <!-- Thumb -->
+  <path d="M13 20L10 22V28L13 26V20Z" fill="#D32936"/>
+</svg>

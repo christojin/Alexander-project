@@ -376,7 +376,7 @@ export default function SellerEarningsPage() {
                     >
                       <option value="qr_bolivia">QR Bolivia</option>
                       <option value="bank_transfer">Transferencia Bancaria</option>
-                      <option value="paypal">PayPal</option>
+                      <option value="binance_pay">Binance Pay</option>
                     </select>
                   </div>
 

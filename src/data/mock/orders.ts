@@ -96,7 +96,7 @@ export const orders: Order[] = [
     commissionRate: 12,
     commissionAmount: 3.36,
     sellerEarnings: 24.64,
-    paymentMethod: "paypal",
+    paymentMethod: "binance_pay",
     paymentStatus: "completed",
     status: "completed",
     digitalCodes: [],

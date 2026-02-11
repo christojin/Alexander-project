@@ -50,9 +50,15 @@ const paymentOptions: PaymentOption[] = [
     icon: CreditCard,
   },
   {
-    id: "paypal",
-    label: "PayPal",
-    description: "Redirigir a PayPal para completar el pago",
+    id: "binance_pay",
+    label: "Binance Pay",
+    description: "Paga con tu cuenta de Binance",
+    icon: Globe,
+  },
+  {
+    id: "crypto",
+    label: "Criptomonedas",
+    description: "Bitcoin, USDT, USDC y mas",
     icon: Globe,
   },
 ];
@@ -347,20 +353,39 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {selectedPayment === "paypal" && (
+                {selectedPayment === "binance_pay" && (
                   <div className="flex flex-col items-center text-center space-y-4 py-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
                       <Globe className="h-8 w-8" />
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-surface-700">
-                        Seras redirigido a PayPal
+                        Seras redirigido a Binance Pay
                       </p>
                       <p className="text-xs text-surface-500">
-                        Inicia sesion en tu cuenta de PayPal para completar el pago de forma segura.
+                        Inicia sesion en tu cuenta de Binance para completar el pago de forma segura.
                       </p>
                     </div>
-                    <div className="text-2xl font-bold text-blue-600">
+                    <div className="text-2xl font-bold text-amber-600">
+                      {formatCurrency(cartTotalAmount)}
+                    </div>
+                  </div>
+                )}
+
+                {selectedPayment === "crypto" && (
+                  <div className="flex flex-col items-center text-center space-y-4 py-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+                      <Globe className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-surface-700">
+                        Pago con criptomonedas
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Envia Bitcoin, USDT, USDC u otra criptomoneda a la direccion indicada.
+                      </p>
+                    </div>
+                    <div className="text-2xl font-bold text-purple-600">
                       {formatCurrency(cartTotalAmount)}
                     </div>
                   </div>

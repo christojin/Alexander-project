@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Valorant V-mark: angular V with a dot -->
+  <path d="M4 10L20 40H28L44 10H36L24 34L12 10H4Z" fill="#FF4655"/>
+  <!-- Signature dot above right arm -->
+  <rect x="36" y="4" width="6" height="6" fill="#FF4655"/>
+</svg>

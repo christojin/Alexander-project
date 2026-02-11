@@ -220,7 +220,7 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
                   Usuario Demo
                 </p>
                 <p className="text-[11px] text-surface-500 leading-tight">
-                  demo@vendorvault.bo
+                  demo@virtumall.com
                 </p>
               </div>
             </div>

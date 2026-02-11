@@ -63,7 +63,8 @@ export function getPaymentMethodLabel(method: string): string {
   const labels: Record<string, string> = {
     qr_bolivia: "QR Bolivia",
     stripe: "Tarjeta de credito",
-    paypal: "PayPal",
+    binance_pay: "Binance Pay",
+    crypto: "Criptomonedas",
   };
   return labels[method] || method;
 }
@@ -74,5 +75,5 @@ export function truncate(str: string, length: number): string {
 }
 
 export function generateId(): string {
-  return Math.random().toString(36).substring(2, 9);
+  return crypto.randomUUID();
 }

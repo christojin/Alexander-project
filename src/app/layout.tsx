@@ -3,7 +3,7 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VendorVault - Marketplace de Productos Digitales",
+  title: "VirtuMall - Marketplace de Productos Digitales",
   description:
     "Tu marketplace seguro de gift cards, codigos digitales y vouchers en Bolivia. Entrega instantanea, pagos con QR Bolivia, y soporte garantizado.",
   keywords: [
@@ -16,6 +16,18 @@ export const metadata: Metadata = {
     "PlayStation",
     "Steam",
   ],
+  icons: {
+    icon: "/favicon.png",
+    apple: "/images/brand/logo-icon.png",
+  },
+  openGraph: {
+    title: "VirtuMall - Marketplace de Productos Digitales",
+    description:
+      "Tu marketplace seguro de gift cards, codigos digitales y vouchers en Bolivia.",
+    images: ["/images/brand/logo-full.png"],
+    siteName: "VirtuMall",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

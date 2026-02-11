@@ -77,8 +77,8 @@ export const sellers: Seller[] = [
 
 export const admin: User = {
   id: "admin-1",
-  name: "Admin VendorVault",
-  email: "admin@vendorvault.com",
+  name: "Admin VirtuMall",
+  email: "admin@virtumall.com",
   role: "admin",
   createdAt: "2025-08-01T00:00:00Z",
   isActive: true,

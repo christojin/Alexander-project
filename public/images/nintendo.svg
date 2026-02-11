@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Rounded rectangle border -->
+  <rect x="4" y="8" width="40" height="32" rx="6" fill="#E60012"/>
+  <!-- Inner cutout -->
+  <rect x="7" y="11" width="34" height="26" rx="4" fill="white"/>
+  <!-- N shape -->
+  <path d="M14 15H19L29 29V15H34V33H29L19 19V33H14V15Z" fill="#E60012"/>
+</svg>

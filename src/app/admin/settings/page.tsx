@@ -23,14 +23,15 @@ import {
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
-  const [siteName, setSiteName] = useState("VendorVault");
+  const [siteName, setSiteName] = useState("VirtuMall");
   const [siteDescription, setSiteDescription] = useState(
     "Marketplace de gift cards y codigos digitales en Bolivia"
   );
 
   const [enableQrBolivia, setEnableQrBolivia] = useState(true);
   const [enableStripe, setEnableStripe] = useState(true);
-  const [enablePaypal, setEnablePaypal] = useState(false);
+  const [enableBinancePay, setEnableBinancePay] = useState(false);
+  const [enableCrypto, setEnableCrypto] = useState(false);
 
   const [deliveryDelay, setDeliveryDelay] = useState(30);
   const [highValueThreshold, setHighValueThreshold] = useState(500);
@@ -45,7 +46,7 @@ export default function AdminSettingsPage() {
   const [whatsappNumber, setWhatsappNumber] = useState("+591 ");
 
   const [footerHtml, setFooterHtml] = useState(
-    `<footer style="background-color: #1e293b; color: #cbd5e1; padding: 2rem; text-align: center;">\n  <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: white;">VendorVault</p>\n  <p style="margin: 0; font-size: 0.875rem;">Marketplace de gift cards y codigos digitales</p>\n  <p style="margin: 0.5rem 0 0; font-size: 0.75rem; color: #94a3b8;">2026 VendorVault. Todos los derechos reservados.</p>\n</footer>`
+    `<footer style="background-color: #1e293b; color: #cbd5e1; padding: 2rem; text-align: center;">\n  <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: white;">VirtuMall</p>\n  <p style="margin: 0; font-size: 0.875rem;">Marketplace de gift cards y codigos digitales</p>\n  <p style="margin: 0.5rem 0 0; font-size: 0.75rem; color: #94a3b8;">2026 VirtuMall. Todos los derechos reservados.</p>\n</footer>`
   );
 
   const [saved, setSaved] = useState(false);
@@ -77,14 +78,24 @@ export default function AdminSettingsPage() {
       color: "bg-indigo-100 text-indigo-600",
     },
     {
-      id: "paypal",
-      name: "PayPal",
+      id: "binance_pay",
+      name: "Binance Pay",
       description:
-        "Pagos mediante cuenta PayPal o tarjeta asociada",
+        "Pagos mediante cuenta Binance Pay",
       icon: Wallet,
-      enabled: enablePaypal,
-      toggle: setEnablePaypal,
-      color: "bg-blue-100 text-blue-600",
+      enabled: enableBinancePay,
+      toggle: setEnableBinancePay,
+      color: "bg-amber-100 text-amber-600",
+    },
+    {
+      id: "crypto",
+      name: "Criptomonedas",
+      description:
+        "Pagos con Bitcoin, USDT, USDC y mas",
+      icon: Globe,
+      enabled: enableCrypto,
+      toggle: setEnableCrypto,
+      color: "bg-purple-100 text-purple-600",
     },
   ];
 
@@ -173,7 +184,7 @@ export default function AdminSettingsPage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {paymentMethods.map((method) => {
               const IconComp = method.icon;
               return (

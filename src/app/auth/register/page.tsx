@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Shield,
   Mail,
@@ -13,35 +14,76 @@ import {
   Zap,
   Globe,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
-import { useApp } from "@/context/AppContext";
+import { registerUser, loginWithGoogle } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
-import type { UserRole } from "@/types";
 
-type RegisterRole = "buyer" | "seller";
+type RegisterRole = "BUYER" | "SELLER";
 
 export default function RegisterPage() {
-  const { login } = useApp();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState<RegisterRole>("buyer");
-  const [storeName, setStoreName] = useState("");
+  const [selectedRole, setSelectedRole] = useState<RegisterRole>("BUYER");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    // Validations
+    if (!fullName.trim() || !email || !password || !confirmPassword) {
+      setError("Todos los campos son requeridos");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("La contrasena debe tener al menos 8 caracteres");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Las contrasenas no coinciden");
+      return;
+    }
+
+    if (!acceptTerms) {
+      setError("Debes aceptar los terminos y condiciones");
+      return;
+    }
+
     setIsLoading(true);
-    login(selectedRole);
-    setTimeout(() => {
-      const routes: Record<RegisterRole, string> = {
-        buyer: "/buyer/dashboard",
-        seller: "/seller/dashboard",
-      };
-      window.location.href = routes[selectedRole];
-    }, 600);
+    try {
+      const result = await registerUser({
+        name: fullName.trim(),
+        email,
+        password,
+        role: selectedRole,
+      });
+
+      if (result?.error) {
+        setError(result.error);
+        setIsLoading(false);
+      }
+    } catch {
+      // Redirect errors are expected (NEXT_REDIRECT)
+    }
+  };
+
+  const handleGoogleRegister = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await loginWithGoogle(
+        selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard"
+      );
+    } catch {
+      setIsGoogleLoading(false);
+    }
   };
 
   const roleOptions: {
@@ -49,21 +91,18 @@ export default function RegisterPage() {
     label: string;
     description: string;
     icon: typeof User;
-    features: string[];
   }[] = [
     {
-      role: "buyer",
+      role: "BUYER",
       label: "Comprador",
       description: "Quiero comprar productos digitales",
       icon: ShoppingBag,
-      features: ["Acceso a miles de productos", "Entrega instantanea", "Soporte al comprador"],
     },
     {
-      role: "seller",
+      role: "SELLER",
       label: "Vendedor",
       description: "Quiero vender mis productos digitales",
       icon: Store,
-      features: ["Panel de vendedor completo", "Multiples metodos de pago", "Herramientas de analisis"],
     },
   ];
 
@@ -71,14 +110,11 @@ export default function RegisterPage() {
     <div className="flex min-h-screen">
       {/* Left Side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-900 via-primary-800 to-primary-950">
-        {/* Decorative elements */}
         <div className="absolute inset-0">
           <div className="absolute top-32 right-20 w-80 h-80 bg-accent-500/10 rounded-full blur-3xl" />
           <div className="absolute bottom-32 left-10 w-72 h-72 bg-primary-500/10 rounded-full blur-3xl" />
           <div className="absolute top-1/3 left-1/3 w-48 h-48 bg-primary-400/5 rounded-full blur-2xl" />
         </div>
-
-        {/* Grid pattern overlay */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -89,17 +125,17 @@ export default function RegisterPage() {
         />
 
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white">
-              Vendor<span className="text-primary-300">Vault</span>
-            </span>
-          </div>
+          <Link href="/" className="inline-flex items-center gap-3">
+            <Image
+              src="/images/brand/logo-full.png"
+              alt="VirtuMall"
+              width={200}
+              height={50}
+              className="h-11 w-auto brightness-0 invert"
+              priority
+            />
+          </Link>
 
-          {/* Center content */}
           <div className="space-y-8">
             <div>
               <h1 className="text-4xl font-bold text-white leading-tight">
@@ -113,7 +149,6 @@ export default function RegisterPage() {
               </p>
             </div>
 
-            {/* Feature highlights */}
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500/20 text-accent-400">
@@ -145,7 +180,6 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {/* Bottom */}
           <p className="text-sm text-primary-400">
             Unete a mas de 5,000 usuarios registrados
           </p>
@@ -154,15 +188,19 @@ export default function RegisterPage() {
 
       {/* Right Side - Form */}
       <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-8 lg:p-12 bg-white overflow-y-auto">
-        <div className="w-full max-w-md space-y-6">
+        <div className="w-full max-w-md space-y-5">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-600 text-white">
-              <Shield className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-bold text-surface-900">
-              Vendor<span className="text-primary-600">Vault</span>
-            </span>
+          <div className="lg:hidden flex items-center justify-center mb-4">
+            <Link href="/">
+              <Image
+                src="/images/brand/logo-full.png"
+                alt="VirtuMall"
+                width={180}
+                height={45}
+                className="h-10 w-auto"
+                priority
+              />
+            </Link>
           </div>
 
           {/* Header */}
@@ -171,17 +209,25 @@ export default function RegisterPage() {
               Crear Cuenta
             </h2>
             <p className="mt-2 text-sm text-surface-500">
-              Completa el formulario para registrarte en VendorVault
+              Completa el formulario para registrarte en VirtuMall
             </p>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Role Selector */}
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-3">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               Tipo de cuenta
             </label>
             <div className="grid grid-cols-2 gap-3">
-              {roleOptions.map(({ role, label, description, icon: Icon, features }) => (
+              {roleOptions.map(({ role, label, description, icon: Icon }) => (
                 <button
                   key={role}
                   type="button"
@@ -211,9 +257,7 @@ export default function RegisterPage() {
                   <p
                     className={cn(
                       "text-sm font-semibold transition-colors",
-                      selectedRole === role
-                        ? "text-primary-900"
-                        : "text-surface-800"
+                      selectedRole === role ? "text-primary-900" : "text-surface-800"
                     )}
                   >
                     {label}
@@ -224,14 +268,45 @@ export default function RegisterPage() {
             </div>
           </div>
 
+          {/* Google OAuth */}
+          <button
+            type="button"
+            onClick={handleGoogleRegister}
+            disabled={isGoogleLoading}
+            className={cn(
+              "flex w-full items-center justify-center gap-3 rounded-lg border border-surface-300 bg-white px-4 py-2.5 text-sm font-medium text-surface-700 transition-all duration-200",
+              "hover:bg-surface-50 hover:border-surface-400",
+              "disabled:opacity-50 disabled:pointer-events-none",
+              "cursor-pointer"
+            )}
+          >
+            {isGoogleLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-surface-400/30 border-t-surface-600" />
+            ) : (
+              <svg className="h-5 w-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+            )}
+            Registrarse con Google
+          </button>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-surface-200" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-white px-4 text-surface-400">o con email</span>
+            </div>
+          </div>
+
           {/* Registration Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name */}
             <div>
-              <label
-                htmlFor="fullName"
-                className="block text-sm font-medium text-surface-700 mb-1.5"
-              >
+              <label htmlFor="fullName" className="block text-sm font-medium text-surface-700 mb-1.5">
                 Nombre completo
               </label>
               <div className="relative">
@@ -249,12 +324,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Email */}
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-surface-700 mb-1.5"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-surface-700 mb-1.5">
                 Correo electronico
               </label>
               <div className="relative">
@@ -272,37 +343,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Store Name (Seller only) */}
-            {selectedRole === "seller" && (
-              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <label
-                  htmlFor="storeName"
-                  className="block text-sm font-medium text-surface-700 mb-1.5"
-                >
-                  Nombre de tu tienda
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-surface-400">
-                    <Store className="h-4 w-4" />
-                  </div>
-                  <input
-                    id="storeName"
-                    type="text"
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    placeholder="Mi Tienda Digital"
-                    className="block w-full rounded-lg border border-surface-300 bg-white py-2.5 pl-10 pr-3.5 text-sm text-surface-900 placeholder:text-surface-400 transition-all duration-200 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Password */}
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-surface-700 mb-1.5"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-surface-700 mb-1.5">
                 Contrasena
               </label>
               <div className="relative">
@@ -320,12 +362,8 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Confirm Password */}
             <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-medium text-surface-700 mb-1.5"
-              >
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-surface-700 mb-1.5">
                 Confirmar contrasena
               </label>
               <div className="relative">
@@ -343,7 +381,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Terms and Conditions */}
+            {/* Terms */}
             <div className="flex items-start gap-2.5">
               <input
                 id="terms"
@@ -354,30 +392,22 @@ export default function RegisterPage() {
               />
               <label htmlFor="terms" className="text-sm text-surface-600 leading-snug cursor-pointer">
                 Acepto los{" "}
-                <Link
-                  href="#"
-                  className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
-                >
+                <Link href="#" className="font-medium text-primary-600 hover:text-primary-700 transition-colors">
                   terminos y condiciones
                 </Link>{" "}
                 y la{" "}
-                <Link
-                  href="#"
-                  className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
-                >
+                <Link href="#" className="font-medium text-primary-600 hover:text-primary-700 transition-colors">
                   politica de privacidad
                 </Link>
               </label>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-primary-600/25 transition-all duration-200",
                 "hover:bg-primary-700 active:bg-primary-800",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
                 "disabled:opacity-50 disabled:pointer-events-none",
                 "cursor-pointer"
               )}
@@ -392,6 +422,16 @@ export default function RegisterPage() {
               )}
             </button>
           </form>
+
+          {/* Seller Note */}
+          {selectedRole === "SELLER" && (
+            <div className="bg-primary-50 border border-primary-100 rounded-lg px-4 py-3">
+              <p className="text-xs text-primary-700">
+                Al registrarte como vendedor, tu cuenta pasara por un proceso de verificacion KYC.
+                Podras empezar a vender una vez aprobada por un administrador.
+              </p>
+            </div>
+          )}
 
           {/* Login Link */}
           <p className="text-center text-sm text-surface-500">

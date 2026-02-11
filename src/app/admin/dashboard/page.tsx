@@ -173,7 +173,7 @@ export default function AdminDashboardPage() {
             Panel de Administracion
           </h1>
           <p className="mt-1 text-slate-500">
-            Vista general de la plataforma VendorVault
+            Vista general de la plataforma VirtuMall
           </p>
         </div>
 

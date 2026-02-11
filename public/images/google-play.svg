@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Google Play - four-color play button -->
+  <!-- Blue: left portion (top-left to center to bottom-left) -->
+  <path d="M8 4.5C8 3.3 9.3 2.5 10.4 3.1L24 24L8 42V4.5Z" fill="#4285F4"/>
+  <!-- Green: top-right quadrant -->
+  <path d="M10.4 3.1L24 24L42 14.5L10.4 3.1Z" fill="#34A853"/>
+  <!-- Yellow: right tip -->
+  <path d="M42 14.5L24 24L42 33.5C43.4 32.7 44 31 44 24C44 17 43.4 15.3 42 14.5Z" fill="#FBBC04"/>
+  <!-- Red: bottom-right quadrant -->
+  <path d="M24 24L42 33.5L10.4 44.9C9.3 45.5 8 44.7 8 43.5V42L24 24Z" fill="#EA4335"/>
+</svg>

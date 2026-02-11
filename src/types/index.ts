@@ -39,7 +39,8 @@ export interface DigitalCode {
   orderId?: string;
 }
 
-export type ProductType = "streaming" | "gift_card";
+export type ProductType = "streaming" | "gift_card" | "topup";
+export type StreamingMode = "complete_account" | "profile_sharing";
 
 export interface Product {
   id: string;
@@ -53,9 +54,13 @@ export interface Product {
   sellerId: string;
   sellerName: string;
   sellerRating: number;
+  sellerVerified: boolean;
+  sellerSales: number;
+  sellerJoined: string;
   image: string;
   brand: string;
   region: string;
+  regionFlag?: string;
   platform: string;
   stockCount: number;
   soldCount: number;
@@ -63,6 +68,10 @@ export interface Product {
   isFeatured: boolean;
   deliveryType: "instant" | "manual";
   productType: ProductType;
+  streamingMode?: StreamingMode;
+  streamingDuration?: string;
+  streamingMaxProfiles?: number;
+  manualDeliveryTime?: string;
   createdAt: string;
 }
 
@@ -72,7 +81,7 @@ export interface CartItem {
 }
 
 export type OrderStatus = "pending" | "processing" | "completed" | "cancelled" | "refunded" | "under_review";
-export type PaymentMethod = "qr_bolivia" | "stripe" | "paypal";
+export type PaymentMethod = "qr_bolivia" | "stripe" | "binance_pay" | "crypto";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
 
 export interface StreamingCredentials {
@@ -152,7 +161,8 @@ export interface AdminSettings {
   defaultCommissionRate: number;
   enableQrBolivia: boolean;
   enableStripe: boolean;
-  enablePaypal: boolean;
+  enableBinancePay: boolean;
+  enableCrypto: boolean;
   deliveryDelayMinutes: number;
   highValueThreshold: number;
   requireManualReviewAbove: number;

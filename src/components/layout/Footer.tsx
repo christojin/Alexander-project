@@ -1,6 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
-  Shield,
   Facebook,
   Twitter,
   Instagram,
@@ -22,11 +22,11 @@ const linkGroups: FooterLinkGroup[] = [
   {
     title: "Categorias",
     links: [
-      { label: "Streaming", href: "/products" },
-      { label: "Gaming", href: "/products" },
-      { label: "Juegos Moviles", href: "/products" },
-      { label: "Tiendas Online", href: "/products" },
-      { label: "Redes Sociales", href: "/products" },
+      { label: "Streaming", href: "/products?category=streaming" },
+      { label: "Gaming", href: "/products?category=gaming" },
+      { label: "Gift Cards", href: "/products?category=gift-cards" },
+      { label: "Software", href: "/products?category=software" },
+      { label: "Mobile Top-Up", href: "/products?category=mobile-topup" },
     ],
   },
   {
@@ -66,12 +66,13 @@ export default function Footer({ customHtml }: FooterProps) {
           {/* Branding Section */}
           <div className="sm:col-span-2 lg:col-span-2">
             <Link href="/" className="inline-flex items-center gap-2 group">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white transition-colors group-hover:bg-primary-500">
-                <Shield className="h-5 w-5" />
-              </div>
-              <span className="text-xl font-bold text-white">
-                Vendor<span className="text-primary-400">Vault</span>
-              </span>
+              <Image
+                src="/images/brand/logo-full.png"
+                alt="VirtuMall"
+                width={160}
+                height={40}
+                className="h-9 w-auto brightness-0 invert"
+              />
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-surface-400">
               Tu marketplace seguro de productos digitales en Bolivia
@@ -80,10 +81,10 @@ export default function Footer({ customHtml }: FooterProps) {
               <div className="flex items-center gap-2.5 text-sm text-surface-400">
                 <Mail className="h-4 w-4 shrink-0 text-primary-400" />
                 <a
-                  href="mailto:contacto@vendorvault.bo"
+                  href="mailto:contacto@virtumall.com"
                   className="transition-colors hover:text-white"
                 >
-                  contacto@vendorvault.bo
+                  contacto@virtumall.com
                 </a>
               </div>
               <div className="flex items-center gap-2.5 text-sm text-surface-400">
@@ -101,7 +102,7 @@ export default function Footer({ customHtml }: FooterProps) {
               </h3>
               <ul className="mt-4 space-y-2.5">
                 {group.links.map((link) => (
-                  <li key={link.href}>
+                  <li key={link.label}>
                     <Link
                       href={link.href}
                       className="text-sm text-surface-400 transition-colors hover:text-white"
@@ -126,7 +127,7 @@ export default function Footer({ customHtml }: FooterProps) {
         {/* Bottom Bar */}
         <div className="flex flex-col items-center justify-between gap-4 border-t border-surface-800 py-6 sm:flex-row">
           <p className="text-sm text-surface-500">
-            &copy; {currentYear} VendorVault. Todos los derechos reservados.
+            &copy; {currentYear} VirtuMall. Todos los derechos reservados.
           </p>
 
           {/* Social Media Links */}

@@ -1,0 +1,741 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH & USERS
+// ============================================
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum SellerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum SellerMarketType {
+  GIFT_CARDS
+  STREAMING
+  GAMING
+  SOFTWARE
+  MIXED
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  emailVerified  DateTime?
+  passwordHash   String?
+  avatar         String?
+  role           UserRole  @default(BUYER)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // OAuth
+  accounts       Account[]
+  sessions       Session[]
+
+  // Relations
+  sellerProfile  SellerProfile?
+  orders         Order[]          @relation("BuyerOrders")
+  ticketsAsBuyer Ticket[]         @relation("BuyerTickets")
+  sentMessages   ChatMessage[]    @relation("MessageSender")
+  notifications  Notification[]
+  readAnnouncements AnnouncementRead[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================
+// SELLER
+// ============================================
+
+model SellerProfile {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  storeName       String
+  storeDescription String?
+  commissionRate  Float            @default(10.0)
+  rating          Float            @default(0)
+  totalReviews    Int              @default(0)
+  totalSales      Int              @default(0)
+  totalEarnings   Float            @default(0)
+  availableBalance Float           @default(0)
+  status          SellerStatus     @default(PENDING)
+  marketType      SellerMarketType @default(MIXED)
+  countryId       String?
+  isVerified      Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country         Region?           @relation(fields: [countryId], references: [id])
+  kycDocuments    KYCDocument[]
+  businessHours   SellerBusinessHours[]
+  products        Product[]
+  sellerOrders    Order[]           @relation("SellerOrders")
+  ticketsAsSeller Ticket[]          @relation("SellerTickets")
+  chatsSeller     ChatConversation[] @relation("SellerChats")
+  withdrawals     Withdrawal[]
+
+  @@map("seller_profiles")
+}
+
+model KYCDocument {
+  id              String   @id @default(cuid())
+  sellerId        String
+  documentType    String   // "identity", "business_license", etc.
+  documentUrl     String
+  status          String   @default("pending") // "pending", "approved", "rejected"
+  reviewNote      String?
+  createdAt       DateTime @default(now())
+  reviewedAt      DateTime?
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("kyc_documents")
+}
+
+model SellerBusinessHours {
+  id         String  @id @default(cuid())
+  sellerId   String
+  dayOfWeek  Int     // 0=Sunday, 6=Saturday
+  openTime   String  // "09:00"
+  closeTime  String  // "18:00"
+  isClosed   Boolean @default(false)
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, dayOfWeek])
+  @@map("seller_business_hours")
+}
+
+// ============================================
+// CATALOG: CATEGORIES, BRANDS, REGIONS
+// ============================================
+
+model Category {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  description  String?
+  icon         String?   // icon name or URL
+  image        String?   // category card image (admin uploads)
+  mascotImage  String?   // mascot variant for this category
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  logo         String?
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Region {
+  id           String  @id @default(cuid())
+  name         String
+  code         String  @unique  // "US", "BO", "EU"
+  flagEmoji    String?          // "🇺🇸"
+  flagImage    String?          // custom flag image URL
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  products       Product[]
+  sellerProfiles SellerProfile[]
+
+  @@map("regions")
+}
+
+// ============================================
+// PRODUCTS
+// ============================================
+
+enum ProductType {
+  GIFT_CARD
+  STREAMING
+  TOP_UP
+  MANUAL
+}
+
+enum DeliveryType {
+  INSTANT
+  MANUAL
+}
+
+enum StreamingMode {
+  COMPLETE_ACCOUNT
+  PROFILE
+}
+
+model Product {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  description     String
+  price           Float
+  originalPrice   Float?       // for discount display
+  productType     ProductType
+  deliveryType    DeliveryType @default(INSTANT)
+  streamingMode   StreamingMode? // only for STREAMING type
+  profileCount    Int?         // only for PROFILE mode (e.g., 5 profiles)
+  duration        Int?         // days (for manual delivery products)
+  image           String?      // admin-managed product image
+  stockCount      Int          @default(0)
+  soldCount       Int          @default(0)
+  isActive        Boolean      @default(true)
+  isPromoted      Boolean      @default(false)  // admin sets, shows on homepage
+  isDeleted       Boolean      @default(false)   // soft delete
+  deletedAt       DateTime?
+  deletedBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Relations
+  sellerId        String
+  categoryId      String
+  brandId         String?
+  regionId        String?
+
+  seller          SellerProfile @relation(fields: [sellerId], references: [id])
+  category        Category      @relation(fields: [categoryId], references: [id])
+  brand           Brand?        @relation(fields: [brandId], references: [id])
+  region          Region?       @relation(fields: [regionId], references: [id])
+
+  giftCardCodes     GiftCardCode[]
+  streamingAccounts StreamingAccount[]
+  orderItems        OrderItem[]
+
+  @@map("products")
+}
+
+// ============================================
+// INVENTORY: GIFT CARDS
+// ============================================
+
+enum CodeStatus {
+  AVAILABLE
+  SOLD
+  RESERVED
+  EXPIRED
+}
+
+model GiftCardCode {
+  id            String     @id @default(cuid())
+  productId     String
+  codeEncrypted String     // AES-256 encrypted
+  pin           String?    // optional PIN, encrypted
+  status        CodeStatus @default(AVAILABLE)
+  expiresAt     DateTime?
+  soldAt        DateTime?
+  buyerId       String?    // who bought it
+  orderId       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  product  Product    @relation(fields: [productId], references: [id])
+  order    OrderItem? @relation(fields: [orderId], references: [id])
+
+  @@map("gift_card_codes")
+}
+
+// ============================================
+// INVENTORY: STREAMING ACCOUNTS
+// ============================================
+
+enum AccountStatus {
+  AVAILABLE
+  SOLD
+  SUSPENDED
+  EXPIRED
+}
+
+model StreamingAccount {
+  id              String        @id @default(cuid())
+  productId       String
+  emailEncrypted  String        // AES-256 encrypted
+  usernameEncrypted String?
+  passwordEncrypted String      // AES-256 encrypted
+  expiresAt       DateTime?
+  status          AccountStatus @default(AVAILABLE)
+  maxProfiles     Int           @default(1) // for PROFILE mode
+  soldProfiles    Int           @default(0)
+  soldAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  product  Product             @relation(fields: [productId], references: [id])
+  profiles StreamingProfile[]
+
+  @@map("streaming_accounts")
+}
+
+model StreamingProfile {
+  id                  String   @id @default(cuid())
+  streamingAccountId  String
+  profileNumber       Int      // 1, 2, 3, 4, 5
+  buyerId             String?
+  orderId             String?
+  assignedAt          DateTime?
+  createdAt           DateTime @default(now())
+
+  streamingAccount StreamingAccount @relation(fields: [streamingAccountId], references: [id], onDelete: Cascade)
+  order            OrderItem?       @relation(fields: [orderId], references: [id])
+
+  @@unique([streamingAccountId, profileNumber])
+  @@map("streaming_profiles")
+}
+
+// ============================================
+// ORDERS & PAYMENTS
+// ============================================
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  UNDER_REVIEW
+}
+
+enum PaymentMethod {
+  STRIPE
+  QR_BOLIVIA
+  BINANCE_PAY
+  CRYPTO
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  orderNumber        String        @unique @default(cuid())
+  buyerId            String
+  sellerId           String
+  subtotal           Float
+  serviceFeeFixed    Float         @default(0) // buyer service fee (fixed)
+  serviceFeePercent  Float         @default(0) // buyer service fee (%)
+  serviceFeeAmount   Float         @default(0) // calculated fee amount
+  totalAmount        Float
+  commissionRate     Float         // seller commission %
+  commissionAmount   Float         // calculated commission
+  sellerEarnings     Float         // totalAmount - commission
+  paymentMethod      PaymentMethod
+  paymentStatus      PaymentStatus @default(PENDING)
+  status             OrderStatus   @default(PENDING)
+  isHighValue        Boolean       @default(false)
+  requiresManualReview Boolean     @default(false)
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  completedAt        DateTime?
+
+  buyer    User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller   SellerProfile @relation("SellerOrders", fields: [sellerId], references: [id])
+  items    OrderItem[]
+  payment  Payment?
+  tickets  Ticket[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String      @id @default(cuid())
+  orderId           String
+  productId         String
+  productName       String      // snapshot at purchase time
+  productType       ProductType
+  quantity          Int
+  unitPrice         Float
+  totalPrice        Float
+  deliveryType      DeliveryType
+  isDelivered       Boolean     @default(false)
+  deliveredAt       DateTime?
+
+  order             Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId], references: [id])
+  giftCardCodes     GiftCardCode[]
+  streamingProfiles StreamingProfile[]
+
+  @@map("order_items")
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  orderId            String        @unique
+  paymentMethod      PaymentMethod
+  amount             Float
+  currency           String        @default("USD")
+  status             PaymentStatus @default(PENDING)
+  externalPaymentId  String?       // Stripe payment_id, Binance order_id, etc.
+  paymentDetails     Json?         // gateway-specific response data
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  completedAt        DateTime?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ============================================
+// VEMPER API (Admin-only products)
+// ============================================
+
+enum VemperProductType {
+  GIFT_CARD
+  TOP_UP
+}
+
+model VemperProduct {
+  id              String           @id @default(cuid())
+  vemperProductId String           @unique // ID from Vemper API
+  name            String
+  type            VemperProductType
+  costPrice       Float            // what admin pays Vemper
+  salePrice       Float            // what buyer pays
+  denominations   Json?            // available amounts for gift cards
+  requiredFields  Json?            // fields needed for top-up (e.g., player_id)
+  image           String?
+  categoryId      String?
+  regionId        String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  vemperOrders VemperOrder[]
+
+  @@map("vemper_products")
+}
+
+model VemperOrder {
+  id               String   @id @default(cuid())
+  vemperProductId  String
+  orderId          String?  // link to main order
+  buyerId          String
+  costPrice        Float    // what admin paid
+  salePrice        Float    // what buyer paid
+  profit           Float    // salePrice - costPrice
+  denomination     Float?   // selected amount for gift card
+  topUpData        Json?    // player_id, phone_number, etc.
+  responseData     Json?    // API response
+  status           String   @default("pending") // "pending", "completed", "failed"
+  createdAt        DateTime @default(now())
+  completedAt      DateTime?
+
+  vemperProduct VemperProduct @relation(fields: [vemperProductId], references: [id])
+
+  @@map("vemper_orders")
+}
+
+// ============================================
+// CHAT (Direct buyer-seller)
+// ============================================
+
+model ChatConversation {
+  id         String   @id @default(cuid())
+  buyerId    String
+  sellerId   String
+  productId  String?  // optional: chat started from a product page
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  seller   SellerProfile @relation("SellerChats", fields: [sellerId], references: [id])
+  messages ChatMessage[]
+
+  @@unique([buyerId, sellerId])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id              String   @id @default(cuid())
+  conversationId  String
+  senderId        String
+  content         String
+  imageUrl        String?  // photo attachment
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("MessageSender", fields: [senderId], references: [id])
+
+  @@map("chat_messages")
+}
+
+// ============================================
+// TICKETS (G2G style support)
+// ============================================
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Ticket {
+  id         String         @id @default(cuid())
+  orderId    String
+  buyerId    String
+  sellerId   String
+  subject    String
+  status     TicketStatus   @default(OPEN)
+  priority   TicketPriority @default(MEDIUM)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  closedAt   DateTime?
+
+  order    Order          @relation(fields: [orderId], references: [id])
+  buyer    User           @relation("BuyerTickets", fields: [buyerId], references: [id])
+  seller   SellerProfile  @relation("SellerTickets", fields: [sellerId], references: [id])
+  messages TicketMessage[]
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  senderId   String
+  senderRole UserRole
+  content    String
+  imageUrl   String?  // photo attachment
+  createdAt  DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_messages")
+}
+
+// ============================================
+// NOTIFICATIONS & ANNOUNCEMENTS
+// ============================================
+
+enum NotificationType {
+  NEW_ORDER
+  ORDER_COMPLETED
+  STOCK_DEPLETED
+  NEW_TICKET
+  TICKET_REPLY
+  NEW_CHAT_MESSAGE
+  WITHDRAWAL_APPROVED
+  WITHDRAWAL_REJECTED
+  KYC_APPROVED
+  KYC_REJECTED
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?          // URL to navigate to
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum AnnouncementTarget {
+  ALL
+  BUYERS
+  SELLERS
+}
+
+model Announcement {
+  id        String             @id @default(cuid())
+  title     String
+  content   String
+  target    AnnouncementTarget @default(ALL)
+  isActive  Boolean            @default(true)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  readBy AnnouncementRead[]
+
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+// ============================================
+// FINANCIAL: WITHDRAWALS
+// ============================================
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+model Withdrawal {
+  id           String           @id @default(cuid())
+  sellerId     String
+  amount       Float
+  method       String           // "bank_transfer", "binance", "paypal"
+  accountInfo  Json             // bank details, wallet address, etc.
+  status       WithdrawalStatus @default(PENDING)
+  reviewNote   String?
+  reviewedBy   String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  completedAt  DateTime?
+
+  seller SellerProfile @relation(fields: [sellerId], references: [id])
+
+  @@map("withdrawals")
+}
+
+// ============================================
+// ADMIN: BANNERS, CURRENCIES, SETTINGS
+// ============================================
+
+model Banner {
+  id           String   @id @default(cuid())
+  title        String?
+  imageUrl     String
+  linkUrl      String?  // click destination
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("banners")
+}
+
+model Currency {
+  id           String  @id @default(cuid())
+  name         String  // "Boliviano", "Euro"
+  code         String  @unique // "BOB", "EUR"
+  symbol       String  // "Bs", "€"
+  exchangeRate Float   // rate vs USD (e.g., 6.91 for BOB)
+  isActive     Boolean @default(true)
+  updatedAt    DateTime @updatedAt
+
+  @@map("currencies")
+}
+
+model PlatformSettings {
+  id                       String  @id @default("default")
+  siteName                 String  @default("VirtuMall")
+  footerHtml               String? // admin-editable HTML
+  defaultCommissionRate    Float   @default(10.0)
+  buyerServiceFeeFixed     Float   @default(0)    // fixed fee per transaction
+  buyerServiceFeePercent   Float   @default(0)    // % fee per transaction
+  enableStripe             Boolean @default(true)
+  enableQrBolivia          Boolean @default(true)
+  enableBinancePay         Boolean @default(true)
+  enableCrypto             Boolean @default(true)
+  deliveryDelayMinutes     Int     @default(0)    // fraud protection delay
+  highValueThreshold       Float   @default(100)  // amount to flag as high value
+  requireManualReviewAbove Float   @default(500)  // require manual review above this
+  bannerIntervalSeconds    Int     @default(5)    // hero slider speed
+  updatedAt                DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // "product_deleted", "code_deleted", "user_suspended"
+  entityType  String   // "product", "gift_card_code", "user"
+  entityId    String
+  details     Json?    // snapshot of deleted/changed data
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}

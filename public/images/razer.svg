@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Razer - Three-headed snake, simplified iconic form -->
+  <!-- Left head -->
+  <path d="M4 4C4 4 2 18 12 26C14 28 16 28 18 28C16 24 12 18 14 10C14 10 8 6 4 4Z" fill="#00FF00"/>
+  <!-- Center head -->
+  <path d="M24 2C24 2 18 16 22 26C23 28 24 28 26 28C26 24 28 16 26 8C26 8 24 4 24 2Z" fill="#00FF00"/>
+  <!-- Right head -->
+  <path d="M44 4C44 4 46 18 36 26C34 28 32 28 30 28C32 24 36 18 34 10C34 10 40 6 44 4Z" fill="#00FF00"/>
+  <!-- Body convergence -->
+  <path d="M18 28C18 32 20 38 24 44C28 38 30 32 30 28C28 28 26 28 24 28C22 28 20 28 18 28Z" fill="#00FF00"/>
+</svg>

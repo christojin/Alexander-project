@@ -100,7 +100,7 @@ export default function BuyerOrdersPage() {
         <div>
           <h1 className="text-2xl font-bold text-surface-900">Mis Pedidos</h1>
           <p className="mt-1 text-sm text-surface-500">
-            Historial completo de todas tus compras en VendorVault.
+            Historial completo de todas tus compras en VirtuMall.
           </p>
         </div>
 
