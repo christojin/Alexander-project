@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VirtuMall - Reporte Semanas 1 y 2</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1e293b;
+      background: #fff;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    @page { size: A4; margin: 0; }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      padding: 0;
+      position: relative;
+      page-break-after: always;
+      overflow: hidden;
+    }
+    .page:last-child { page-break-after: auto; }
+
+    /* ===== COVER ===== */
+    .cover {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #2563eb 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 60px 50px;
+    }
+    .cover-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 50px;
+      padding: 8px 24px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+    .cover-logo { font-size: 54px; font-weight: 800; letter-spacing: -1px; margin-bottom: 6px; }
+    .cover-logo span { color: #60a5fa; }
+    .cover-subtitle { font-size: 17px; font-weight: 300; color: rgba(255,255,255,0.7); margin-bottom: 50px; }
+    .cover-divider { width: 80px; height: 3px; background: linear-gradient(90deg, #60a5fa, #a78bfa); border-radius: 2px; margin-bottom: 50px; }
+    .cover-title { font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+    .cover-period { font-size: 19px; font-weight: 400; color: rgba(255,255,255,0.8); margin-bottom: 50px; }
+    .cover-meta { display: flex; gap: 40px; font-size: 13px; }
+    .cover-meta-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .cover-meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.4); }
+    .cover-meta-value { font-weight: 500; color: rgba(255,255,255,0.9); }
+
+    /* ===== CONTENT ===== */
+    .content-page { padding: 30px 42px; background: #fff; }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 10px; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px;
+    }
+    .page-header-logo { font-size: 15px; font-weight: 700; color: #2563eb; }
+    .page-header-logo span { color: #1e293b; }
+    .page-header-info { font-size: 10px; color: #94a3b8; }
+
+    .section { margin-bottom: 18px; }
+    .section-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+    .section-subtitle { font-size: 11px; color: #64748b; margin-bottom: 12px; }
+
+    /* Week header */
+    .week-header {
+      display: flex; align-items: center; gap: 10px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white; padding: 8px 16px; border-radius: 8px;
+      font-size: 14px; font-weight: 600; margin-bottom: 14px;
+    }
+    .week-header .check {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; background: rgba(255,255,255,0.25);
+      border-radius: 50%; font-size: 11px;
+    }
+
+    /* Requirement boxes */
+    .req-section { margin-bottom: 14px; }
+    .req-title {
+      font-size: 12px; font-weight: 700; color: #1e40af;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding-bottom: 4px; border-bottom: 2px solid #dbeafe; margin-bottom: 8px;
+    }
+    .req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .req-card {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;
+    }
+    .req-card h4 { font-size: 12px; font-weight: 600; color: #0f172a; margin-bottom: 3px; }
+    .req-card p { font-size: 10.5px; color: #475569; line-height: 1.45; }
+
+    /* Evidence/Documentation */
+    .evidence-title {
+      font-size: 12px; font-weight: 700; color: #166534;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding-bottom: 4px; border-bottom: 2px solid #bbf7d0; margin-bottom: 8px;
+      margin-top: 14px;
+    }
+
+    .evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .evidence-card {
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px;
+    }
+    .evidence-card h4 { font-size: 11.5px; font-weight: 600; color: #166534; margin-bottom: 3px; }
+    .evidence-card p { font-size: 10.5px; color: #15803d; line-height: 1.45; }
+    .evidence-card .file { font-family: 'SF Mono', monospace; font-size: 9.5px; color: #4ade80; background: #14532d; padding: 1px 5px; border-radius: 3px; }
+
+    /* Stats */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+    .stat-card {
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center;
+    }
+    .stat-number {
+      font-size: 24px; font-weight: 800;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .stat-label { font-size: 9.5px; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+    /* Tech stack */
+    .tech-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .tech-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+      font-size: 11px; font-weight: 500;
+    }
+    .tech-tag .ver { color: #94a3b8; font-size: 10px; }
+
+    /* Table */
+    .table-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #f1f5f9; }
+    th { padding: 6px 10px; text-align: left; font-size: 9.5px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 5px 10px; font-size: 11px; border-top: 1px solid #f1f5f9; color: #334155; }
+    tr:nth-child(even) { background: #fafbfc; }
+
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 50px; font-size: 10px; font-weight: 600; }
+    .status-complete { background: #dcfce7; color: #166534; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+
+    .api-method { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; font-family: monospace; margin-right: 2px; }
+    .api-method.get { background: #dcfce7; color: #166534; }
+    .api-method.post { background: #dbeafe; color: #1e40af; }
+    .api-method.put { background: #fef3c7; color: #92400e; }
+    .api-method.delete { background: #fee2e2; color: #991b1b; }
+
+    /* Route columns */
+    .route-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .route-group h5 {
+      font-size: 10px; font-weight: 600; color: #2563eb; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 4px; padding-bottom: 3px; border-bottom: 2px solid #dbeafe;
+    }
+    .route-list { list-style: none; }
+    .route-list li { font-size: 10.5px; color: #475569; padding: 1.5px 0; font-family: 'SF Mono', monospace; }
+    .route-list li::before { content: ">"; color: #2563eb; font-weight: 700; margin-right: 6px; }
+
+    /* Next Steps */
+    .next-steps { background: linear-gradient(135deg, #eff6ff, #f0f9ff); border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; }
+    .next-steps h3 { font-size: 13px; font-weight: 700; color: #1e40af; margin-bottom: 6px; }
+    .next-step-item { display: flex; align-items: flex-start; gap: 7px; padding: 2.5px 0; }
+    .next-step-bullet {
+      width: 18px; height: 18px; border-radius: 50%; background: #2563eb; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .next-step-text { font-size: 10.5px; color: #1e3a5f; line-height: 1.4; }
+    .next-step-text strong { color: #1e40af; }
+
+    /* Progress bar */
+    .progress-section { margin-bottom: 16px; }
+    .progress-bar-container { background: #e2e8f0; border-radius: 10px; height: 10px; overflow: hidden; margin-bottom: 6px; }
+    .progress-bar { height: 100%; border-radius: 10px; background: linear-gradient(90deg, #2563eb, #7c3aed); }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
+    .progress-labels .current { font-weight: 600; color: #2563eb; }
+
+    /* Footer */
+    .page-footer {
+      position: absolute; bottom: 20px; left: 42px; right: 42px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8;
+    }
+
+    /* Paragraph text */
+    .text-block { font-size: 11.5px; color: #334155; line-height: 1.55; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: COVER -->
+  <div class="page cover">
+    <div class="cover-badge">Reporte de Avance</div>
+    <div class="cover-logo">Virtu<span>Mall</span></div>
+    <div class="cover-subtitle">Marketplace Digital Multi-Vendedor</div>
+    <div class="cover-divider"></div>
+    <div class="cover-title">Informe de Progreso</div>
+    <div class="cover-period">Semanas 1 y 2</div>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Fecha</span>
+        <span class="cover-meta-value">13 de Febrero, 2026</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Proyecto</span>
+        <span class="cover-meta-value">VirtuMall v1.0</span>
+      </div>
+      <div class="cover-meta-item">
+        <span class="cover-meta-label">Estado</span>
+        <span class="cover-meta-value">En Desarrollo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: OVERVIEW + WEEK 1 REQUIREMENTS & EVIDENCE -->
+  <div class="page content-page">
+    <div class="page-header">
+      <div class="page-header-logo">Virtu<span>Mall</span></div>
+      <div class="page-header-info">Reporte Semanas 1-2 | Febrero 2026</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Descripcion del Proyecto</div>
+      <p class="text-block">
+        VirtuMall es un marketplace digital multi-vendedor orientado a la venta de gift cards, codigos digitales, cuentas streaming y vouchers. La plataforma contempla tres roles de usuario (comprador, vendedor y administrador), cada uno con su propio panel de control. El sistema esta pensado para el mercado boliviano, con soporte para pagos locales como QR Bolivia, ademas de metodos internacionales como tarjeta de credito y criptomonedas.
+      </p>
+      <div class="tech-row">
+        <div class="tech-tag">Next.js <span class="ver">v16.1.6</span></div>
+        <div class="tech-tag">React <span class="ver">v19.2.4</span></div>
+        <div class="tech-tag">TypeScript <span class="ver">v5.9.3</span></div>
+        <div class="tech-tag">Tailwind CSS <span class="ver">v4.1.18</span></div>
+        <div class="tech-tag">PostgreSQL <span class="ver">v17</span></div>
+        <div class="tech-tag">Prisma ORM <span class="ver">v6.19</span></div>
+        <div class="tech-tag">Auth.js <span class="ver">v5</span></div>
+      </div>
+      <div class="progress-section">
+        <div class="progress-bar-container">
+          <div class="progress-bar" style="width: 33%;"></div>
+        </div>
+        <div class="progress-labels">
+          <span class="current">Semana 2 de 6 completada (33%)</span>
+          <span>Meta: Semana 6</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEEK 1 -->
+    <div class="week-header">
+      <span class="check">&#10003;</span>
+      Semana 1 — Requerimientos y Entregables
+    </div>
+
+    <div class="req-section">
+      <div class="req-title">Requerimientos del Cliente</div>
+      <div class="req-grid">
+        <div class="req-card">
+          <h4>Interfaz de Usuario Completa</h4>
+          <p>Disenar e implementar todas las pantallas de la aplicacion: pagina principal, catalogo de productos, detalle de producto, carrito de compras, checkout, paneles de comprador, vendedor y administrador. Diseño responsive para todos los dispositivos.</p>
+        </div>
+        <div class="req-card">
+          <h4>Sistema de Autenticacion</h4>
+          <p>Registro e inicio de sesion con correo electronico y contrasena. Soporte para Google OAuth. Asignacion de roles al momento del registro (comprador o vendedor). Proteccion de rutas segun el rol del usuario.</p>
+        </div>
+        <div class="req-card">
+          <h4>Modelo de Base de Datos</h4>
+          <p>Disenar el esquema completo de la base de datos que soporte: usuarios, productos (gift cards, streaming, top-ups), pedidos, pagos, tickets de soporte, billetera, chat, notificaciones, y configuraciones de la plataforma.</p>
+        </div>
+        <div class="req-card">
+          <h4>Datos de Prueba</h4>
+          <p>Generar un script de seed con datos realistas para demostrar el funcionamiento de la aplicacion: productos con precios reales, marcas conocidas (Netflix, Steam, Amazon), categorias, regiones, y cuentas de usuario para cada rol.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="req-section">
+      <div class="evidence-title">Documentacion de Cumplimiento — Semana 1</div>
+      <div class="evidence-grid">
+        <div class="evidence-card">
+          <h4>25 Pantallas Funcionales</h4>
+          <p>Se implementaron las 25 vistas solicitadas: 7 paginas publicas, 2 de autenticacion, 3 del comprador, 6 del vendedor y 7 del administrador. Cada pantalla incluye estados vacios, indicadores de carga, y se adapta a celular, tablet y escritorio.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>Auth.js con JWT y Roles</h4>
+          <p>Se configuro Auth.js v5 con estrategia JWT, PrismaAdapter para persistencia, y callbacks personalizados que inyectan el rol del usuario en el token. El middleware protege las rutas /buyer, /seller y /admin segun corresponda.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>29 Modelos en PostgreSQL</h4>
+          <p>El esquema Prisma define 29 modelos interconectados con relaciones, indices, enums, y campos de auditoria (createdAt, updatedAt, deletedAt). Incluye modelos para productos, inventario, pedidos, pagos, soporte, y mas.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>Script de Seed Completo</h4>
+          <p>El script genera: 2 monedas, 9 regiones, 5 categorias, 14 marcas, 4 usuarios de prueba, 16 productos, 15 codigos gift card, 6 cuentas streaming, 3 banners y 1 anuncio. Todo ejecutable con un solo comando.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>VirtuMall - Reporte de Avance</span>
+      <span>Pagina 2 de 5</span>
+    </div>
+  </div>
+
+  <!-- PAGE 3: WEEK 1 DETAILED EVIDENCE -->
+  <div class="page content-page">
+    <div class="page-header">
+      <div class="page-header-logo">Virtu<span>Mall</span></div>
+      <div class="page-header-info">Reporte Semanas 1-2 | Febrero 2026</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Semana 1 — Detalle de Implementacion</div>
+      <div class="section-subtitle">Desglose de pantallas, componentes y arquitectura entregados</div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number">25</div>
+          <div class="stat-label">Pantallas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">29</div>
+          <div class="stat-label">Modelos BD</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">115</div>
+          <div class="stat-label">Archivos TS/TSX</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">12</div>
+          <div class="stat-label">Componentes UI</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="req-title">Pantallas Implementadas por Seccion</div>
+      <div class="route-columns">
+        <div>
+          <div class="route-group">
+            <h5>Paginas Publicas (7)</h5>
+            <ul class="route-list">
+              <li>/ &mdash; Pagina principal con banners y productos destacados</li>
+              <li>/products &mdash; Catalogo con busqueda y filtros</li>
+              <li>/products/[id] &mdash; Detalle con precio, vendedor, stock</li>
+              <li>/store/[id] &mdash; Pagina publica del vendedor</li>
+              <li>/cart &mdash; Carrito de compras con resumen</li>
+              <li>/checkout &mdash; Pago con 4 metodos</li>
+              <li>/checkout/success &mdash; Confirmacion y codigo</li>
+            </ul>
+          </div>
+          <div class="route-group" style="margin-top: 8px;">
+            <h5>Autenticacion (2)</h5>
+            <ul class="route-list">
+              <li>/auth/login &mdash; Login con Google OAuth</li>
+              <li>/auth/register &mdash; Registro con selector de rol</li>
+            </ul>
+          </div>
+          <div class="route-group" style="margin-top: 8px;">
+            <h5>Panel del Comprador (3)</h5>
+            <ul class="route-list">
+              <li>/buyer/dashboard &mdash; Resumen y pedidos recientes</li>
+              <li>/buyer/orders &mdash; Historial de compras</li>
+              <li>/buyer/tickets &mdash; Soporte con chat</li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="route-group">
+            <h5>Panel del Vendedor (6)</h5>
+            <ul class="route-list">
+              <li>/seller/dashboard &mdash; Ventas y estadisticas</li>
+              <li>/seller/products &mdash; CRUD de productos</li>
+              <li>/seller/orders &mdash; Pedidos recibidos</li>
+              <li>/seller/earnings &mdash; Ganancias y comisiones</li>
+              <li>/seller/tickets &mdash; Soporte al comprador</li>
+              <li>/seller/kyc &mdash; Verificacion de identidad</li>
+            </ul>
+          </div>
+          <div class="route-group" style="margin-top: 8px;">
+            <h5>Panel del Administrador (7)</h5>
+            <ul class="route-list">
+              <li>/admin/dashboard &mdash; Metricas generales</li>
+              <li>/admin/products &mdash; Moderacion de productos</li>
+              <li>/admin/categories &mdash; Gestion de categorias</li>
+              <li>/admin/users &mdash; Gestion de usuarios</li>
+              <li>/admin/commissions &mdash; Comisiones por venta</li>
+              <li>/admin/api-integrations &mdash; APIs externas</li>
+              <li>/admin/settings &mdash; Configuracion general</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="req-title">Componentes Reutilizables Desarrollados</div>
+      <div class="text-block">
+        Se construyeron 12 componentes de interfaz que se reutilizan en toda la aplicacion: Button, Input, Select, Textarea, Modal, Badge, DataTable, StatsCard, Tabs, SearchBar, EmptyState y ProductCard. Ademas se implementaron los componentes de layout (Header con navegacion, Footer, Sidebar para dashboards, y DashboardLayout que los integra). Todos los componentes usan Tailwind CSS v4 con variables de tema personalizadas.
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>VirtuMall - Reporte de Avance</span>
+      <span>Pagina 3 de 5</span>
+    </div>
+  </div>
+
+  <!-- PAGE 4: WEEK 2 REQUIREMENTS & EVIDENCE -->
+  <div class="page content-page">
+    <div class="page-header">
+      <div class="page-header-logo">Virtu<span>Mall</span></div>
+      <div class="page-header-info">Reporte Semanas 1-2 | Febrero 2026</div>
+    </div>
+
+    <div class="week-header">
+      <span class="check">&#10003;</span>
+      Semana 2 — Requerimientos y Entregables
+    </div>
+
+    <div class="req-section">
+      <div class="req-title">Requerimientos del Cliente</div>
+      <div class="req-grid">
+        <div class="req-card">
+          <h4>API de Gestion de Productos</h4>
+          <p>El vendedor debe poder crear, editar, eliminar y listar sus productos desde el panel. Debe soportar carga masiva de codigos de gift card y registro de cuentas streaming con control automatico de stock.</p>
+        </div>
+        <div class="req-card">
+          <h4>Catalogo Publico con Base de Datos</h4>
+          <p>La pagina principal, el catalogo de productos y el detalle de producto deben mostrar datos reales de la base de datos en lugar de datos de prueba estaticos. Debe funcionar la busqueda, filtros por categoria, y ordenamiento.</p>
+        </div>
+        <div class="req-card">
+          <h4>Pagina Publica del Vendedor</h4>
+          <p>Cada vendedor debe tener una pagina publica accesible por URL con su perfil, calificacion, estadisticas de ventas y su catalogo de productos disponibles.</p>
+        </div>
+        <div class="req-card">
+          <h4>Despliegue en Produccion</h4>
+          <p>La aplicacion debe estar accesible en internet para revision. Se requiere despliegue en un servicio de hosting con la base de datos en la nube, disponible 24/7.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="req-section">
+      <div class="evidence-title">Documentacion de Cumplimiento — Semana 2</div>
+      <div class="evidence-grid">
+        <div class="evidence-card">
+          <h4>CRUD Completo con 10 Endpoints</h4>
+          <p>Se implementaron 10 rutas de API que cubren toda la gestion de productos del vendedor: listado con filtros, creacion con slug automatico, edicion parcial, eliminacion logica, carga masiva de codigos, y registro de cuentas streaming.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>3 Paginas Conectadas a la BD</h4>
+          <p>La pagina principal, el catalogo (/products) y el detalle (/products/[id]) ahora consultan la base de datos PostgreSQL a traves de los endpoints. Se elimino toda dependencia de datos estaticos en estas vistas.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>Tienda del Vendedor Operativa</h4>
+          <p>Se creo la ruta /store/[id] con un endpoint dedicado. Muestra el perfil del vendedor, su calificacion promedio, fecha de registro, numero de ventas, insignia de verificacion, y la lista completa de productos activos.</p>
+        </div>
+        <div class="evidence-card">
+          <h4>Vercel + Neon Configurados</h4>
+          <p>La aplicacion se desplego en Vercel (region US West, Portland). La base de datos PostgreSQL se migro a Neon (cloud) con todas las tablas y datos de prueba cargados. Las variables de entorno estan configuradas en produccion.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top: 14px;">
+      <div class="req-title">Endpoints API Implementados</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Metodo</th><th>Ruta</th><th>Funcion</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="api-method get">GET</span><span class="api-method post">POST</span></td>
+              <td>/api/seller/products</td><td>Listar y crear productos</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span><span class="api-method put">PUT</span><span class="api-method delete">DEL</span></td>
+              <td>/api/seller/products/[id]</td><td>Consultar, editar y eliminar</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span><span class="api-method post">POST</span></td>
+              <td>/api/seller/products/[id]/codes</td><td>Codigos de gift card</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span><span class="api-method post">POST</span></td>
+              <td>/api/seller/products/[id]/accounts</td><td>Cuentas streaming</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span></td>
+              <td>/api/catalog</td><td>Categorias, marcas y regiones</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span></td>
+              <td>/api/products</td><td>Catalogo publico con filtros</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span></td>
+              <td>/api/products/[id]</td><td>Detalle de producto</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span></td>
+              <td>/api/store/[id]</td><td>Perfil publico del vendedor</td>
+            </tr>
+            <tr>
+              <td><span class="api-method post">POST</span></td>
+              <td>/api/auth/register</td><td>Registro de usuarios</td>
+            </tr>
+            <tr>
+              <td><span class="api-method get">GET</span><span class="api-method post">POST</span></td>
+              <td>/api/auth/[...nextauth]</td><td>Login y logout</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>VirtuMall - Reporte de Avance</span>
+      <span>Pagina 4 de 5</span>
+    </div>
+  </div>
+
+  <!-- PAGE 5: TIMELINE + NEXT STEPS -->
+  <div class="page content-page">
+    <div class="page-header">
+      <div class="page-header-logo">Virtu<span>Mall</span></div>
+      <div class="page-header-info">Reporte Semanas 1-2 | Febrero 2026</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Resumen de Avance</div>
+      <p class="text-block">
+        Con la finalizacion de las semanas 1 y 2, la plataforma VirtuMall cuenta con toda la interfaz de usuario construida, el sistema de autenticacion operativo, la base de datos poblada con datos de prueba, y las funcionalidades principales del catalogo conectadas a la base de datos real. La aplicacion se encuentra desplegada y accesible en internet para revision.
+      </p>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number">25</div>
+          <div class="stat-label">Pantallas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">10</div>
+          <div class="stat-label">Endpoints API</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">29</div>
+          <div class="stat-label">Tablas en BD</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">115</div>
+          <div class="stat-label">Archivos Codigo</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Next Steps -->
+    <div class="next-steps">
+      <h3>Proximos Pasos — Semana 3</h3>
+      <div class="next-step-item">
+        <div class="next-step-bullet">1</div>
+        <div class="next-step-text"><strong>Sistema de Pagos</strong> — Flujo completo de checkout con QR Bolivia, tarjeta de credito (Stripe) y criptomonedas. Procesamiento de ordenes y entrega automatica de codigos.</div>
+      </div>
+      <div class="next-step-item">
+        <div class="next-step-bullet">2</div>
+        <div class="next-step-text"><strong>Billetera Digital</strong> — Saldo interno para compradores que facilita los reembolsos sin necesidad de transferencias bancarias. Historial de movimientos y recarga de saldo.</div>
+      </div>
+      <div class="next-step-item">
+        <div class="next-step-bullet">3</div>
+        <div class="next-step-text"><strong>Sistema de Reembolsos</strong> — Dos modalidades: reembolso total (100% del monto) y reembolso parcial prorrateado segun los dias de uso del servicio.</div>
+      </div>
+      <div class="next-step-item">
+        <div class="next-step-bullet">4</div>
+        <div class="next-step-text"><strong>Gestion de Pedidos</strong> — Conexion de los paneles de pedidos del comprador y vendedor con la base de datos. Estados de pedido, seguimiento y notificaciones.</div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="section" style="margin-top: 16px;">
+      <div class="section-title" style="font-size: 16px;">Cronograma General del Proyecto</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Semana</th><th>Alcance</th><th>Estado</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Semana 1</strong></td>
+              <td>Interfaz de usuario, autenticacion, base de datos, datos de prueba</td>
+              <td><span class="status-badge status-complete">Completada</span></td>
+            </tr>
+            <tr>
+              <td><strong>Semana 2</strong></td>
+              <td>APIs de productos, conexion con base de datos, despliegue en produccion</td>
+              <td><span class="status-badge status-complete">Completada</span></td>
+            </tr>
+            <tr>
+              <td><strong>Semana 3</strong></td>
+              <td>Pagos, billetera, reembolsos, gestion de pedidos</td>
+              <td><span class="status-badge status-pending">Pendiente</span></td>
+            </tr>
+            <tr>
+              <td><strong>Semana 4</strong></td>
+              <td>Encriptacion AES-256, notificaciones en tiempo real, chat interno</td>
+              <td><span class="status-badge status-pending">Pendiente</span></td>
+            </tr>
+            <tr>
+              <td><strong>Semana 5</strong></td>
+              <td>Panel de administracion completo, estadisticas y reportes</td>
+              <td><span class="status-badge status-pending">Pendiente</span></td>
+            </tr>
+            <tr>
+              <td><strong>Semana 6</strong></td>
+              <td>Pruebas integrales, optimizacion de rendimiento, despliegue final</td>
+              <td><span class="status-badge status-pending">Pendiente</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>VirtuMall - Reporte de Avance</span>
+      <span>Pagina 5 de 5</span>
+    </div>
+  </div>
+
+</body>
+</html>
