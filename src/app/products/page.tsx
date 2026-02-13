@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Search,
@@ -11,27 +11,69 @@ import {
   List,
   ArrowUpDown,
   Tag,
+  Loader2,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
 import ProductCard from "@/components/products/ProductCard";
 import { useApp } from "@/context/AppContext";
-import { products, categories } from "@/data/mock";
+import { toFrontendProducts } from "@/lib/api-transforms";
+import type { Product } from "@/types";
 
 type SortOption = "popular" | "price_asc" | "price_desc" | "newest";
 type DeliveryFilter = "all" | "instant" | "manual";
 
+interface CatalogCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 function ProductsContent() {
   const { addToCart } = useApp();
   const searchParams = useSearchParams();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showPromotedOnly, setShowPromotedOnly] = useState(false);
+  const [showPromotedOnly, setShowPromotedOnly] = useState(
+    searchParams.get("promoted") === "true"
+  );
 
+  // Fetch categories for filter panel
+  useEffect(() => {
+    fetch("/api/catalog")
+      .then((res) => res.json())
+      .then((data) => setCategories(data.categories ?? []))
+      .catch(console.error);
+  }, []);
+
+  // Build API query params and fetch products
+  const fetchProducts = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("search", searchQuery);
+    if (showPromotedOnly) params.set("promoted", "true");
+    params.set("sort", sortBy);
+    params.set("limit", "50");
+
+    fetch(`/api/products?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => setProducts(toFrontendProducts(data.products)))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [searchQuery, sortBy, showPromotedOnly]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // Update search from URL params
   useEffect(() => {
     const q = searchParams.get("q");
     if (q) setSearchQuery(q);
@@ -39,54 +81,13 @@ function ProductsContent() {
     if (promoted === "true") setShowPromotedOnly(true);
   }, [searchParams]);
 
-  const filteredProducts = useMemo(() => {
-    let result = products.filter((p) => p.isActive);
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.brand.toLowerCase().includes(query) ||
-          p.categoryName.toLowerCase().includes(query)
-      );
-    }
-
-    if (selectedCategory) {
-      result = result.filter((p) => p.categoryId === selectedCategory);
-    }
-
-    if (deliveryFilter === "instant") {
-      result = result.filter((p) => p.deliveryType === "instant");
-    } else if (deliveryFilter === "manual") {
-      result = result.filter((p) => p.deliveryType === "manual");
-    }
-
-    if (showPromotedOnly) {
-      result = result.filter((p) => p.isFeatured);
-    }
-
-    switch (sortBy) {
-      case "price_asc":
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case "price_desc":
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case "newest":
-        result.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        break;
-      case "popular":
-      default:
-        result.sort((a, b) => b.soldCount - a.soldCount);
-        break;
-    }
-
-    return result;
-  }, [searchQuery, selectedCategory, sortBy, deliveryFilter, showPromotedOnly]);
+  // Client-side filtering on top of API results
+  const filteredProducts = products.filter((p) => {
+    if (selectedCategory && p.categoryId !== selectedCategory) return false;
+    if (deliveryFilter === "instant" && p.deliveryType !== "instant") return false;
+    if (deliveryFilter === "manual" && p.deliveryType !== "manual") return false;
+    return true;
+  });
 
   const selectedCategoryName = selectedCategory
     ? categories.find((c) => c.id === selectedCategory)?.name
@@ -113,7 +114,7 @@ function ProductsContent() {
                   : "Todos los productos"}
               </h1>
               <p className="text-sm text-surface-500 mt-1">
-                {filteredProducts.length} productos disponibles
+                {loading ? "Cargando..." : `${filteredProducts.length} productos disponibles`}
               </p>
             </div>
 
@@ -343,7 +344,11 @@ function ProductsContent() {
         )}
 
         {/* Products */}
-        {filteredProducts.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-surface-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8 text-surface-300" />

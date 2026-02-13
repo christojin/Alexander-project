@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Plus,
   Pencil,
@@ -20,6 +20,8 @@ import {
   User,
   Lock,
   CalendarDays,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import {
@@ -32,62 +34,56 @@ import {
   Badge,
   EmptyState,
 } from "@/components/ui";
-import { products as initialProducts } from "@/data/mock/products";
-import type { Product, ProductType } from "@/types";
-import { formatCurrency, cn, generateId } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 
-const SELLER_ID = "seller-1";
-const SELLER_NAME = "DigitalKeys Bolivia";
+// ---------- Types for API data ----------
 
-const categoryOptions = [
-  { value: "cat-1", label: "Streaming" },
-  { value: "cat-2", label: "Gaming" },
-  { value: "cat-3", label: "Juegos Moviles" },
-  { value: "cat-4", label: "Tiendas Online" },
-];
+interface CatalogItem {
+  id: string;
+  name: string;
+  slug: string;
+}
 
-const categoryNameMap: Record<string, string> = {
-  "cat-1": "Streaming",
-  "cat-2": "Gaming",
-  "cat-3": "Juegos Moviles",
-  "cat-4": "Tiendas Online",
-};
-
-const regionOptions = [
-  { value: "Global", label: "Global" },
-  { value: "USA", label: "USA" },
-  { value: "Latinoamerica", label: "Latinoamerica" },
-  { value: "Europa", label: "Europa" },
-];
-
-const platformOptions = [
-  { value: "Netflix", label: "Netflix" },
-  { value: "Spotify", label: "Spotify" },
-  { value: "PlayStation Store", label: "PlayStation Store" },
-  { value: "Steam", label: "Steam" },
-  { value: "Xbox", label: "Xbox" },
-  { value: "Amazon", label: "Amazon" },
-  { value: "Roblox", label: "Roblox" },
-  { value: "Free Fire", label: "Free Fire" },
-  { value: "PUBG Mobile", label: "PUBG Mobile" },
-  { value: "Disney+", label: "Disney+" },
-  { value: "Otro", label: "Otro" },
-];
-
-const deliveryOptions = [
-  { value: "instant", label: "Instantanea" },
-  { value: "manual", label: "Manual" },
-];
+interface SellerProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  originalPrice: number | null;
+  productType: "GIFT_CARD" | "STREAMING" | "TOP_UP" | "MANUAL";
+  deliveryType: "INSTANT" | "MANUAL";
+  streamingMode: "COMPLETE_ACCOUNT" | "PROFILE" | null;
+  profileCount: number | null;
+  duration: number | null;
+  image: string | null;
+  stockCount: number;
+  soldCount: number;
+  isActive: boolean;
+  isPromoted: boolean;
+  createdAt: string;
+  categoryId: string;
+  brandId: string | null;
+  regionId: string | null;
+  category: CatalogItem;
+  brand: CatalogItem | null;
+  region: { id: string; name: string; code: string } | null;
+  _count?: {
+    giftCardCodes: number;
+    streamingAccounts: number;
+  };
+}
 
 interface ProductForm {
   name: string;
   description: string;
   price: string;
+  originalPrice: string;
   categoryId: string;
-  region: string;
-  platform: string;
-  deliveryType: "instant" | "manual";
-  productType: ProductType;
+  brandId: string;
+  regionId: string;
+  deliveryType: "INSTANT" | "MANUAL";
+  productType: "GIFT_CARD" | "STREAMING";
   digitalCodes: string;
   streamingEmail: string;
   streamingUsername: string;
@@ -99,11 +95,12 @@ const emptyForm: ProductForm = {
   name: "",
   description: "",
   price: "",
+  originalPrice: "",
   categoryId: "",
-  region: "",
-  platform: "",
-  deliveryType: "instant",
-  productType: "gift_card",
+  brandId: "",
+  regionId: "",
+  deliveryType: "INSTANT",
+  productType: "GIFT_CARD",
   digitalCodes: "",
   streamingEmail: "",
   streamingUsername: "",
@@ -111,144 +108,287 @@ const emptyForm: ProductForm = {
   streamingExpiration: "",
 };
 
+const deliveryOptions = [
+  { value: "INSTANT", label: "Instantanea" },
+  { value: "MANUAL", label: "Manual" },
+];
+
 export default function SellerProductsPage() {
-  const [productsList, setProductsList] = useState<Product[]>(
-    initialProducts.filter((p) => p.sellerId === SELLER_ID)
-  );
+  // Data state
+  const [products, setProducts] = useState<SellerProduct[]>([]);
+  const [categories, setCategories] = useState<CatalogItem[]>([]);
+  const [brands, setBrands] = useState<CatalogItem[]>([]);
+  const [regions, setRegions] = useState<{ id: string; name: string; code: string }[]>([]);
+
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFileName, setImportFileName] = useState("");
 
+  // ---------- Data Fetching ----------
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/seller/products");
+      if (!res.ok) throw new Error("Error al cargar productos");
+      const data = await res.json();
+      setProducts(data.products);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    }
+  }, []);
+
+  const fetchCatalog = useCallback(async () => {
+    try {
+      const res = await fetch("/api/catalog");
+      if (!res.ok) throw new Error("Error al cargar catalogo");
+      const data = await res.json();
+      setCategories(data.categories);
+      setBrands(data.brands);
+      setRegions(data.regions);
+    } catch (err) {
+      console.error("Catalog fetch error:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetchProducts(), fetchCatalog()]).finally(() =>
+      setLoading(false)
+    );
+  }, [fetchProducts, fetchCatalog]);
+
+  // ---------- Filtering ----------
+
   const filteredProducts = useMemo(() => {
-    return productsList.filter((p) => {
+    return products.filter((p) => {
       const matchesSearch =
         !searchQuery ||
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.brand.toLowerCase().includes(searchQuery.toLowerCase());
+        (p.brand?.name ?? "").toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory =
         !categoryFilter || p.categoryId === categoryFilter;
       return matchesSearch && matchesCategory;
     });
-  }, [productsList, searchQuery, categoryFilter]);
+  }, [products, searchQuery, categoryFilter]);
+
+  // ---------- Modal Handlers ----------
 
   const openCreateModal = () => {
     setEditingProduct(null);
     setForm(emptyForm);
+    setError(null);
     setModalOpen(true);
   };
 
-  const openEditModal = (product: Product) => {
+  const openEditModal = (product: SellerProduct) => {
     setEditingProduct(product);
     setForm({
       name: product.name,
       description: product.description,
       price: product.price.toString(),
+      originalPrice: product.originalPrice?.toString() ?? "",
       categoryId: product.categoryId,
-      region: product.region,
-      platform: product.platform,
+      brandId: product.brandId ?? "",
+      regionId: product.regionId ?? "",
       deliveryType: product.deliveryType,
-      productType: product.productType,
+      productType: product.productType === "STREAMING" ? "STREAMING" : "GIFT_CARD",
       digitalCodes: "",
       streamingEmail: "",
       streamingUsername: "",
       streamingPassword: "",
       streamingExpiration: "",
     });
+    setError(null);
     setModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.price || !form.categoryId) return;
-
-    const codes = form.digitalCodes
-      .split("\n")
-      .map((c) => c.trim())
-      .filter(Boolean);
-
-    const stockAdded =
-      form.productType === "streaming"
-        ? form.streamingEmail && form.streamingPassword
-          ? 1
-          : 0
-        : codes.length;
-
-    if (editingProduct) {
-      setProductsList((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id
-            ? {
-                ...p,
-                name: form.name,
-                slug: form.name.toLowerCase().replace(/\s+/g, "-"),
-                description: form.description,
-                price: parseFloat(form.price),
-                categoryId: form.categoryId,
-                categoryName: categoryNameMap[form.categoryId] || "",
-                region: form.region,
-                platform: form.platform,
-                deliveryType: form.deliveryType,
-                productType: form.productType,
-                stockCount: p.stockCount + stockAdded,
-              }
-            : p
-        )
-      );
-    } else {
-      const newProduct: Product = {
-        id: `prod-${generateId()}`,
-        name: form.name,
-        slug: form.name.toLowerCase().replace(/\s+/g, "-"),
-        description: form.description,
-        price: parseFloat(form.price),
-        categoryId: form.categoryId,
-        categoryName: categoryNameMap[form.categoryId] || "",
-        sellerId: SELLER_ID,
-        sellerName: SELLER_NAME,
-        sellerRating: 4.8,
-        sellerVerified: true,
-        sellerSales: 0,
-        sellerJoined: new Date().toISOString(),
-        image: "/images/placeholder.svg",
-        brand: form.platform,
-        region: form.region,
-        platform: form.platform,
-        stockCount: stockAdded,
-        soldCount: 0,
-        isActive: true,
-        isFeatured: false,
-        deliveryType: form.deliveryType,
-        productType: form.productType,
-        createdAt: new Date().toISOString(),
-      };
-      setProductsList((prev) => [newProduct, ...prev]);
+  const handleSave = async () => {
+    if (!form.name || !form.price || !form.categoryId || !form.description) {
+      setError("Nombre, descripcion, precio y categoria son requeridos");
+      return;
     }
 
-    setModalOpen(false);
-    setEditingProduct(null);
-    setForm(emptyForm);
+    setSaving(true);
+    setError(null);
+
+    try {
+      const productData = {
+        name: form.name,
+        description: form.description,
+        price: parseFloat(form.price),
+        originalPrice: form.originalPrice ? parseFloat(form.originalPrice) : null,
+        productType: form.productType,
+        deliveryType: form.deliveryType,
+        categoryId: form.categoryId,
+        brandId: form.brandId || null,
+        regionId: form.regionId || null,
+      };
+
+      let savedProduct: SellerProduct;
+
+      if (editingProduct) {
+        // Update
+        const res = await fetch(`/api/seller/products/${editingProduct.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(productData),
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Error al actualizar");
+        }
+        const data = await res.json();
+        savedProduct = data.product;
+      } else {
+        // Create
+        const res = await fetch("/api/seller/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(productData),
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Error al crear producto");
+        }
+        const data = await res.json();
+        savedProduct = data.product;
+      }
+
+      // Upload codes if gift card type and codes provided
+      if (form.productType === "GIFT_CARD" && form.digitalCodes.trim()) {
+        const codes = form.digitalCodes
+          .split("\n")
+          .map((c) => c.trim())
+          .filter(Boolean);
+
+        if (codes.length > 0) {
+          const codesRes = await fetch(
+            `/api/seller/products/${savedProduct.id}/codes`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ codes }),
+            }
+          );
+          if (!codesRes.ok) {
+            const errData = await codesRes.json();
+            console.error("Code upload error:", errData.error);
+          }
+        }
+      }
+
+      // Upload streaming account if provided
+      if (
+        form.productType === "STREAMING" &&
+        form.streamingEmail &&
+        form.streamingPassword
+      ) {
+        const accountRes = await fetch(
+          `/api/seller/products/${savedProduct.id}/accounts`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: form.streamingEmail,
+              username: form.streamingUsername || undefined,
+              password: form.streamingPassword,
+              expiresAt: form.streamingExpiration || undefined,
+            }),
+          }
+        );
+        if (!accountRes.ok) {
+          const errData = await accountRes.json();
+          console.error("Account upload error:", errData.error);
+        }
+      }
+
+      // Refresh product list
+      await fetchProducts();
+      setModalOpen(false);
+      setEditingProduct(null);
+      setForm(emptyForm);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = (productId: string) => {
-    setProductsList((prev) => prev.filter((p) => p.id !== productId));
-    setDeleteConfirm(null);
+  const handleDelete = async (productId: string) => {
+    try {
+      const res = await fetch(`/api/seller/products/${productId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al eliminar");
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      setDeleteConfirm(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+      setDeleteConfirm(null);
+    }
   };
 
-  const toggleActive = (productId: string) => {
-    setProductsList((prev) =>
-      prev.map((p) =>
-        p.id === productId ? { ...p, isActive: !p.isActive } : p
-      )
-    );
+  const toggleActive = async (product: SellerProduct) => {
+    try {
+      const res = await fetch(`/api/seller/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !product.isActive }),
+      });
+      if (!res.ok) throw new Error("Error al cambiar estado");
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, isActive: !p.isActive } : p
+        )
+      );
+    } catch (err) {
+      console.error("Toggle error:", err);
+    }
   };
 
   const updateForm = (field: keyof ProductForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  // ---------- Dropdown options from DB ----------
+
+  const categoryOptions = categories.map((c) => ({
+    value: c.id,
+    label: c.name,
+  }));
+
+  const brandOptions = brands.map((b) => ({
+    value: b.id,
+    label: b.name,
+  }));
+
+  const regionOptions = regions.map((r) => ({
+    value: r.id,
+    label: `${r.name}`,
+  }));
+
+  // ---------- Render ----------
+
+  if (loading) {
+    return (
+      <DashboardLayout role="seller">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="seller">
@@ -322,10 +462,10 @@ export default function SellerProductsPage() {
                   </div>
                   <div className="absolute left-3 top-3">
                     <Badge
-                      variant={product.productType === "streaming" ? "warning" : "info"}
+                      variant={product.productType === "STREAMING" ? "warning" : "info"}
                       size="sm"
                     >
-                      {product.productType === "streaming" ? (
+                      {product.productType === "STREAMING" ? (
                         <span className="flex items-center gap-1"><Tv className="size-3" /> Streaming</span>
                       ) : (
                         <span className="flex items-center gap-1"><Gift className="size-3" /> Gift Card</span>
@@ -346,7 +486,7 @@ export default function SellerProductsPage() {
                 {/* Product Info */}
                 <div className="p-4">
                   <div className="mb-1 text-xs font-medium text-primary-600">
-                    {product.categoryName}
+                    {product.category.name}
                   </div>
                   <h3 className="font-semibold text-surface-900 leading-snug">
                     {product.name}
@@ -365,7 +505,7 @@ export default function SellerProductsPage() {
                   <div className="mt-3 flex items-center gap-4 text-xs text-surface-500">
                     <span>Stock: {product.stockCount}</span>
                     <span>Vendidos: {product.soldCount}</span>
-                    <span>{product.region}</span>
+                    {product.region && <span>{product.region.name}</span>}
                   </div>
 
                   {/* Actions */}
@@ -381,7 +521,7 @@ export default function SellerProductsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => toggleActive(product.id)}
+                      onClick={() => toggleActive(product)}
                       iconLeft={
                         product.isActive ? <ToggleRight /> : <ToggleLeft />
                       }
@@ -411,11 +551,18 @@ export default function SellerProductsPage() {
             setModalOpen(false);
             setEditingProduct(null);
             setForm(emptyForm);
+            setError(null);
           }}
           title={editingProduct ? "Editar producto" : "Agregar producto"}
           size="lg"
         >
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            )}
             <Input
               label="Nombre del producto"
               placeholder="Ej: Netflix Gift Card $30"
@@ -436,6 +583,15 @@ export default function SellerProductsPage() {
                 value={form.price}
                 onChange={(e) => updateForm("price", e.target.value)}
               />
+              <Input
+                label="Precio original (USD)"
+                type="number"
+                placeholder="Opcional, para mostrar descuento"
+                value={form.originalPrice}
+                onChange={(e) => updateForm("originalPrice", e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select
                 label="Categoria"
                 options={categoryOptions}
@@ -443,31 +599,26 @@ export default function SellerProductsPage() {
                 value={form.categoryId}
                 onChange={(e) => updateForm("categoryId", e.target.value)}
               />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Select
+                label="Marca"
+                options={[{ value: "", label: "Sin marca" }, ...brandOptions]}
+                value={form.brandId}
+                onChange={(e) => updateForm("brandId", e.target.value)}
+              />
               <Select
                 label="Region"
-                options={regionOptions}
-                placeholder="Selecciona region"
-                value={form.region}
-                onChange={(e) => updateForm("region", e.target.value)}
-              />
-              <Select
-                label="Plataforma"
-                options={platformOptions}
-                placeholder="Selecciona plataforma"
-                value={form.platform}
-                onChange={(e) => updateForm("platform", e.target.value)}
-              />
-              <Select
-                label="Tipo de entrega"
-                options={deliveryOptions}
-                value={form.deliveryType}
-                onChange={(e) =>
-                  updateForm("deliveryType", e.target.value)
-                }
+                options={[{ value: "", label: "Sin region" }, ...regionOptions]}
+                value={form.regionId}
+                onChange={(e) => updateForm("regionId", e.target.value)}
               />
             </div>
+            <Select
+              label="Tipo de entrega"
+              options={deliveryOptions}
+              value={form.deliveryType}
+              onChange={(e) => updateForm("deliveryType", e.target.value)}
+            />
+
             {/* Product Type Selector */}
             <div>
               <label className="mb-2 block text-sm font-medium text-surface-700">
@@ -476,10 +627,10 @@ export default function SellerProductsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => updateForm("productType", "gift_card")}
+                  onClick={() => updateForm("productType", "GIFT_CARD")}
                   className={cn(
                     "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
-                    form.productType === "gift_card"
+                    form.productType === "GIFT_CARD"
                       ? "border-primary-500 bg-primary-50 text-primary-700"
                       : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
                   )}
@@ -492,10 +643,10 @@ export default function SellerProductsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateForm("productType", "streaming")}
+                  onClick={() => updateForm("productType", "STREAMING")}
                   className={cn(
                     "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
-                    form.productType === "streaming"
+                    form.productType === "STREAMING"
                       ? "border-primary-500 bg-primary-50 text-primary-700"
                       : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
                   )}
@@ -510,7 +661,7 @@ export default function SellerProductsPage() {
             </div>
 
             {/* Type-specific stock entry */}
-            {form.productType === "gift_card" ? (
+            {form.productType === "GIFT_CARD" ? (
               <div>
                 <Textarea
                   label="Codigos digitales"
@@ -571,12 +722,22 @@ export default function SellerProductsPage() {
                   setModalOpen(false);
                   setEditingProduct(null);
                   setForm(emptyForm);
+                  setError(null);
                 }}
               >
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>
-                {editingProduct ? "Guardar cambios" : "Crear producto"}
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Guardando...
+                  </span>
+                ) : editingProduct ? (
+                  "Guardar cambios"
+                ) : (
+                  "Crear producto"
+                )}
               </Button>
             </div>
           </div>

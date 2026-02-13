@@ -26,14 +26,13 @@ import {
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
 import { useApp } from "@/context/AppContext";
-import { products, categories } from "@/data/mock";
 import { formatCurrency } from "@/lib/utils";
+import { toFrontendProducts } from "@/lib/api-transforms";
+import type { Product } from "@/types";
 
 // ============================================
 // DATA
 // ============================================
-
-const promotedProducts = products.filter((p) => p.isFeatured).slice(0, 12);
 
 const categoryIcons = [
   { label: "Juegos", icon: Gamepad2, href: "/products?category=juegos" },
@@ -98,6 +97,14 @@ export default function HomePage() {
   const { addToCart } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [promotedProducts, setPromotedProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    fetch("/api/products?promoted=true&limit=12")
+      .then((res) => res.json())
+      .then((data) => setPromotedProducts(toFrontendProducts(data.products)))
+      .catch(console.error);
+  }, []);
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => (prev + 1) % bannerSlides.length);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -32,13 +32,15 @@ import {
   ArrowUpDown,
   Info,
   Coins,
+  Loader2,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
 import { ProductCard } from "@/components/products";
 import { useApp } from "@/context/AppContext";
-import { products } from "@/data/mock";
 import { formatCurrency } from "@/lib/utils";
+import { toFrontendProduct, toFrontendProducts } from "@/lib/api-transforms";
+import type { Product } from "@/types";
 
 // Service fee config (would come from admin settings)
 const SERVICE_FEE_FIXED = 0.50;
@@ -83,10 +85,40 @@ export default function ProductDetailPage() {
   const { addToCart } = useApp();
   const [quantity, setQuantity] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const product = products.find((p) => p.id === params.id);
+  useEffect(() => {
+    if (!params.id) return;
+    setLoading(true);
+    fetch(`/api/products/${params.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Not found");
+        return res.json();
+      })
+      .then((data) => {
+        setProduct(toFrontendProduct(data.product));
+        setRelatedProducts(toFrontendProducts(data.relatedProducts ?? []));
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [params.id]);
 
-  if (!product) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50">
+        <Header />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (notFound || !product) {
     return (
       <div className="min-h-screen bg-surface-50">
         <Header />
@@ -112,21 +144,6 @@ export default function ProductDetailPage() {
   }
 
   const TypeIcon = getProductTypeIcon(product.productType);
-
-  // Other sellers selling the same brand
-  const otherSellers = products
-    .filter(
-      (p) =>
-        p.brand === product.brand &&
-        p.id !== product.id &&
-        p.sellerId !== product.sellerId
-    )
-    .slice(0, 4);
-
-  // Related products (same category, different product)
-  const relatedProducts = products
-    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
-    .slice(0, 4);
 
   const discountPercent =
     product.originalPrice && product.originalPrice > product.price
@@ -431,61 +448,6 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Other Sellers */}
-            {otherSellers.length > 0 && (
-              <div className="bg-white rounded-2xl border border-surface-200 p-6">
-                <h2 className="text-lg font-semibold text-surface-900 mb-4 flex items-center gap-2">
-                  <ArrowUpDown className="w-5 h-5 text-primary-500" />
-                  Otros vendedores de {product.brand}
-                </h2>
-                <div className="space-y-3">
-                  {otherSellers.map((p) => (
-                    <Link
-                      key={p.id}
-                      href={`/products/${p.id}`}
-                      className="flex items-center justify-between p-4 rounded-xl border border-surface-100 hover:border-primary-200 hover:bg-primary-50/30 transition-all group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-surface-50 rounded-lg overflow-hidden relative">
-                          <Image
-                            src={p.image}
-                            alt={p.name}
-                            fill
-                            className="object-contain p-1.5"
-                          />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-surface-900 group-hover:text-primary-700 transition-colors">
-                            {p.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-surface-500 flex items-center gap-1">
-                              <Store className="w-3 h-3" />
-                              {p.sellerName}
-                            </span>
-                            {p.sellerVerified && (
-                              <BadgeCheck className="w-3.5 h-3.5 text-primary-500" />
-                            )}
-                            <span className="text-xs text-surface-400 flex items-center gap-0.5">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              {p.sellerRating}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-surface-900">
-                          {formatCurrency(p.price)}
-                        </p>
-                        <p className="text-xs text-surface-400">
-                          {p.deliveryType === "instant" ? "Instantaneo" : "Manual"}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* ================================ */}
