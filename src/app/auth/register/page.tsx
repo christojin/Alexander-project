@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -16,12 +17,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { signIn } from "next-auth/react";
 import { registerUser, loginWithGoogle } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 
 type RegisterRole = "BUYER" | "SELLER";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +62,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
+      // Step 1: Create user account via server action
       const result = await registerUser({
         name: fullName.trim(),
         email,
@@ -69,9 +73,30 @@ export default function RegisterPage() {
       if (result?.error) {
         setError(result.error);
         setIsLoading(false);
+        return;
       }
+
+      // Step 2: Sign in via client-side Auth.js
+      const signInResult = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        setError("Cuenta creada. Inicia sesion manualmente.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 3: Redirect to dashboard
+      const dashboardUrl = selectedRole === "SELLER"
+        ? "/seller/dashboard"
+        : "/buyer/dashboard";
+      router.push(dashboardUrl);
     } catch {
-      // Redirect errors are expected (NEXT_REDIRECT)
+      setError("Error al crear la cuenta. Intenta de nuevo.");
+      setIsLoading(false);
     }
   };
 

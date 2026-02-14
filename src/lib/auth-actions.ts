@@ -58,8 +58,8 @@ export async function registerUser(data: {
   }
 
   // Validate password
-  if (data.password.length < 6) {
-    return { error: "La contrasena debe tener al menos 6 caracteres" };
+  if (data.password.length < 8) {
+    return { error: "La contrasena debe tener al menos 8 caracteres" };
   }
 
   // Create user directly via Prisma
@@ -85,20 +85,6 @@ export async function registerUser(data: {
         status: "PENDING",
       },
     });
-  }
-
-  // Auto sign in after registration
-  try {
-    await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirectTo: data.role === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard",
-    });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      return { error: "Cuenta creada pero error al iniciar sesion. Intenta iniciar sesion manualmente." };
-    }
-    throw error;
   }
 
   return { success: true };
