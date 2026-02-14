@@ -102,7 +102,11 @@ export default function HomePage() {
   useEffect(() => {
     fetch("/api/products?promoted=true&limit=12")
       .then((res) => res.json())
-      .then((data) => setPromotedProducts(toFrontendProducts(data.products)))
+      .then((data) => {
+        if (Array.isArray(data.products)) {
+          setPromotedProducts(toFrontendProducts(data.products));
+        }
+      })
       .catch(console.error);
   }, []);
 

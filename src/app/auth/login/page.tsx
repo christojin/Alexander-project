@@ -18,8 +18,9 @@ import {
   Globe,
   AlertCircle,
 } from "lucide-react";
+import { signIn } from "next-auth/react";
 import { useApp } from "@/context/AppContext";
-import { loginWithCredentials, loginWithGoogle } from "@/lib/auth-actions";
+import { loginWithGoogle } from "@/lib/auth-actions";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
 
@@ -74,13 +75,23 @@ function LoginContent() {
 
     setIsLoading(true);
     try {
-      const result = await loginWithCredentials(email, password, callbackUrl);
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
       if (result?.error) {
-        setError(result.error);
+        setError("Email o contrasena incorrectos");
         setIsLoading(false);
+        return;
       }
+
+      // Redirect to callback URL or homepage
+      window.location.href = callbackUrl || "/";
     } catch {
-      // Redirect errors are expected (NEXT_REDIRECT) — handled by Next.js
+      setError("Error al iniciar sesion. Intenta de nuevo.");
+      setIsLoading(false);
     }
   };
 
