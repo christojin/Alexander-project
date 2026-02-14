@@ -2,6 +2,8 @@
 
 import { signIn, signOut } from "@/lib/auth";
 import { AuthError } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
 export async function loginWithCredentials(
   email: string,
@@ -26,7 +28,7 @@ export async function loginWithCredentials(
           return { error: "Error al iniciar sesion" };
       }
     }
-    throw error; // Re-throw redirect errors (NEXT_REDIRECT)
+    throw error;
   }
 }
 
@@ -46,16 +48,43 @@ export async function registerUser(data: {
   password: string;
   role: "BUYER" | "SELLER";
 }) {
-  const res = await fetch(`${process.env.NEXTAUTH_URL}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+  // Check if user already exists
+  const existingUser = await prisma.user.findUnique({
+    where: { email: data.email },
   });
 
-  const result = await res.json();
+  if (existingUser) {
+    return { error: "Este email ya esta registrado" };
+  }
 
-  if (!res.ok) {
-    return { error: result.error || "Error al registrarse" };
+  // Validate password
+  if (data.password.length < 6) {
+    return { error: "La contrasena debe tener al menos 6 caracteres" };
+  }
+
+  // Create user directly via Prisma
+  const passwordHash = await bcrypt.hash(data.password, 12);
+
+  const user = await prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      passwordHash,
+      role: data.role,
+      isActive: true,
+    },
+  });
+
+  // Create seller profile if registering as seller
+  if (data.role === "SELLER") {
+    await prisma.sellerProfile.create({
+      data: {
+        userId: user.id,
+        storeName: `Tienda de ${data.name}`,
+        storeDescription: "",
+        status: "PENDING",
+      },
+    });
   }
 
   // Auto sign in after registration
@@ -69,7 +98,7 @@ export async function registerUser(data: {
     if (error instanceof AuthError) {
       return { error: "Cuenta creada pero error al iniciar sesion. Intenta iniciar sesion manualmente." };
     }
-    throw error; // Re-throw redirect errors
+    throw error;
   }
 
   return { success: true };
