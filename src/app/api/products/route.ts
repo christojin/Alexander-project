@@ -90,8 +90,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("[Products GET] Error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Error interno del servidor" },
+      { error: "Error interno del servidor", details: message },
       { status: 500 }
     );
   }
