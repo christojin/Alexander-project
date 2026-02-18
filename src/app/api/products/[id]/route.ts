@@ -56,13 +56,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       include: {
         category: { select: { id: true, name: true, slug: true } },
         brand: { select: { id: true, name: true, slug: true, logo: true } },
-        region: { select: { id: true, name: true, code: true } },
+        region: { select: { id: true, name: true, code: true, flagEmoji: true } },
         seller: {
           select: {
             id: true,
             storeName: true,
             rating: true,
             isVerified: true,
+            totalSales: true,
+            user: { select: { name: true, createdAt: true } },
           },
         },
       },

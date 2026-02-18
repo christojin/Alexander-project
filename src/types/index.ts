@@ -60,6 +60,7 @@ export interface Product {
   image: string;
   brand: string;
   region: string;
+  regionCode?: string;
   regionFlag?: string;
   platform: string;
   stockCount: number;

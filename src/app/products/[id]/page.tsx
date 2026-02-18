@@ -42,6 +42,12 @@ import { formatCurrency } from "@/lib/utils";
 import { toFrontendProduct, toFrontendProducts } from "@/lib/api-transforms";
 import type { Product } from "@/types";
 
+/** Get a flag image URL from flagcdn.com for 2-letter ISO codes. */
+function getFlagUrl(code: string): string | null {
+  if (code.length === 2) return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+  return null;
+}
+
 // Service fee config (would come from admin settings)
 const SERVICE_FEE_FIXED = 0.50;
 const SERVICE_FEE_PERCENT = 3;
@@ -234,9 +240,21 @@ export default function ProductDetailPage() {
                       <TypeIcon className="w-3.5 h-3.5" />
                       {getProductTypeLabel(product.productType)}
                     </span>
-                    {product.regionFlag && (
-                      <span className="text-xs font-medium text-surface-600 bg-surface-100 px-2.5 py-1 rounded-full flex items-center gap-1">
-                        <span>{product.regionFlag}</span>
+                    {product.region && (
+                      <span className="text-xs font-medium text-surface-600 bg-surface-100 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                        {product.regionCode && getFlagUrl(product.regionCode) ? (
+                          /* eslint-disable @next/next/no-img-element */
+                          <img
+                            src={getFlagUrl(product.regionCode)!}
+                            alt=""
+                            width={16}
+                            height={12}
+                            className="inline-block object-contain"
+                            style={{ width: 16, height: 12 }}
+                          />
+                        ) : product.regionFlag ? (
+                          <span>{product.regionFlag}</span>
+                        ) : null}
                         {product.region}
                       </span>
                     )}
@@ -453,9 +471,10 @@ export default function ProductDetailPage() {
           {/* ================================ */}
           {/* RIGHT COLUMN: Purchase + Seller */}
           {/* ================================ */}
-          <div className="space-y-6">
+          <div>
+            <div className="lg:sticky lg:top-20 space-y-6">
             {/* Purchase Card */}
-            <div className="bg-white rounded-2xl border border-surface-200 p-6 sticky top-20">
+            <div className="bg-white rounded-2xl border border-surface-200 p-6">
               <h3 className="font-semibold text-surface-900 mb-4">
                 Comprar ahora
               </h3>
@@ -655,6 +674,7 @@ export default function ProductDetailPage() {
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>

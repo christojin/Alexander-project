@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -24,7 +24,17 @@ import { cn } from "@/lib/utils";
 type RegisterRole = "BUYER" | "SELLER";
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || undefined;
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,11 +99,15 @@ export default function RegisterPage() {
         return;
       }
 
-      // Step 3: Redirect to dashboard
-      const dashboardUrl = selectedRole === "SELLER"
-        ? "/seller/dashboard"
-        : "/buyer/dashboard";
-      router.push(dashboardUrl);
+      // Step 3: Redirect to callback URL or role-based dashboard
+      if (callbackUrl) {
+        router.push(callbackUrl);
+      } else {
+        const dashboardUrl = selectedRole === "SELLER"
+          ? "/seller/dashboard"
+          : "/buyer/dashboard";
+        router.push(dashboardUrl);
+      }
     } catch {
       setError("Error al crear la cuenta. Intenta de nuevo.");
       setIsLoading(false);
@@ -104,7 +118,7 @@ export default function RegisterPage() {
     setIsGoogleLoading(true);
     try {
       await loginWithGoogle(
-        selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard"
+        callbackUrl || (selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard")
       );
     } catch {
       setIsGoogleLoading(false);
@@ -462,7 +476,7 @@ export default function RegisterPage() {
           <p className="text-center text-sm text-surface-500">
             Ya tienes una cuenta?{" "}
             <Link
-              href="/auth/login"
+              href={callbackUrl ? `/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/auth/login"}
               className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
             >
               Iniciar sesion

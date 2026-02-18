@@ -36,6 +36,31 @@ interface CatalogRegion {
   flagEmoji: string;
 }
 
+/** Get a flag image URL from flagcdn.com for 2-letter ISO codes. */
+function getFlagUrl(code: string): string | null {
+  if (code.length === 2) return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+  return null;
+}
+
+function FlagIcon({ code, flagEmoji, size = 16 }: { code: string; flagEmoji: string; size?: number }) {
+  const url = getFlagUrl(code);
+  if (url) {
+    /* eslint-disable @next/next/no-img-element */
+    return (
+      <img
+        src={url}
+        alt=""
+        width={size}
+        height={Math.round(size * 0.75)}
+        className="inline-block object-contain"
+        style={{ width: size, height: Math.round(size * 0.75) }}
+        loading="lazy"
+      />
+    );
+  }
+  return <span className="text-sm leading-none">{flagEmoji}</span>;
+}
+
 function ProductsContent() {
   const { addToCart } = useApp();
   const searchParams = useSearchParams();
@@ -308,7 +333,7 @@ function ProductsContent() {
                           : "bg-surface-100 text-surface-600 hover:bg-surface-200"
                       }`}
                     >
-                      <span className="text-sm leading-none">{region.flagEmoji}</span>
+                      <FlagIcon code={region.code} flagEmoji={region.flagEmoji} size={16} />
                       {region.name}
                     </button>
                   ))}
@@ -360,9 +385,13 @@ function ProductsContent() {
             {selectedRegion && (
               <button
                 onClick={() => setSelectedRegion(null)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors"
               >
-                <span className="text-sm leading-none">{selectedRegionFlag}</span>
+                <FlagIcon
+                  code={selectedRegion}
+                  flagEmoji={selectedRegionFlag ?? ""}
+                  size={14}
+                />
                 {selectedRegionName}
                 <X className="w-3 h-3" />
               </button>

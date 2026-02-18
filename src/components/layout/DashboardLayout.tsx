@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useSession } from "next-auth/react";
 import {
   Bell,
   Menu,
@@ -10,7 +13,12 @@ import {
   AlertTriangle,
   MessageSquare,
   CheckCircle2,
+  LogOut,
+  Home,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
+import { logout } from "@/lib/auth-actions";
 import Sidebar from "./Sidebar";
 
 type Role = "buyer" | "seller" | "admin";
@@ -68,10 +76,18 @@ const notificationIconColors = {
 };
 
 export default function DashboardLayout({ role, children }: DashboardLayoutProps) {
+  const { data: session } = useSession();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [notifications, setNotifications] = useState(mockNotifications[role]);
   const notifRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const user = session?.user;
+  const userName = user?.name ?? "Usuario";
+  const userEmail = user?.email ?? "";
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -80,10 +96,19 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setUserMenuOpen(false);
+    await logout();
+  };
 
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -210,19 +235,65 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
               )}
             </div>
 
-            {/* User Avatar / Name */}
-            <div className="ml-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-50">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-600">
-                <UserCircle className="h-5 w-5" />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-medium text-surface-900 leading-tight">
-                  Usuario Demo
-                </p>
-                <p className="text-[11px] text-surface-500 leading-tight">
-                  demo@virtumall.com
-                </p>
-              </div>
+            {/* User Avatar / Name with Dropdown */}
+            <div className="relative ml-2" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-50"
+              >
+                {user?.image ? (
+                  <Image
+                    src={user.image}
+                    alt={userName}
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 rounded-full"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-600">
+                    <UserCircle className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="hidden sm:block text-left">
+                  <p className="text-sm font-medium text-surface-900 leading-tight">
+                    {userName}
+                  </p>
+                  <p className="text-[11px] text-surface-500 leading-tight">
+                    {userEmail}
+                  </p>
+                </div>
+                <ChevronDown className={`hidden sm:block h-3.5 w-3.5 text-surface-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 origin-top-right rounded-xl border border-surface-200 bg-white p-1.5 shadow-xl z-50">
+                  <div className="border-b border-surface-100 px-3 py-2.5 mb-1">
+                    <p className="text-sm font-semibold text-surface-900 truncate">{userName}</p>
+                    <p className="text-xs text-surface-500 truncate">{userEmail}</p>
+                  </div>
+                  <Link
+                    href="/"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-surface-700 transition-colors hover:bg-surface-50"
+                  >
+                    <Home className="h-4 w-4" />
+                    Ir al inicio
+                  </Link>
+                  <div className="my-1 border-t border-surface-100" />
+                  <button
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {loggingOut ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <LogOut className="h-4 w-4" />
+                    )}
+                    {loggingOut ? "Cerrando..." : "Cerrar Sesion"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

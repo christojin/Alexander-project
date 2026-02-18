@@ -20,8 +20,12 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  LogOut,
+  Home,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
+import { logout } from "@/lib/auth-actions";
 
 type Role = "buyer" | "seller" | "admin";
 
@@ -86,9 +90,15 @@ const kycStatusConfig: Record<string, { label: string; className: string }> = {
 
 export default function Sidebar({ role }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
   const badge = roleBadgeConfig[role];
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logout();
+  };
 
   // Add KYC status badge dynamically for sellers
   const sellerStatus = session?.user?.sellerStatus;
@@ -228,13 +238,40 @@ export default function Sidebar({ role }: SidebarProps) {
       </nav>
 
       {/* Bottom section */}
-      {!collapsed && (
-        <div className="border-t border-surface-100 p-4">
-          <p className="text-[11px] text-surface-400">
+      <div className="border-t border-surface-100 px-3 py-3 space-y-1">
+        <Link
+          href="/"
+          title={collapsed ? "Ir al inicio" : undefined}
+          className={`group flex items-center rounded-lg text-surface-600 hover:bg-surface-50 hover:text-surface-900 transition-colors ${
+            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+          }`}
+        >
+          <Home className="h-5 w-5 shrink-0 text-surface-400 group-hover:text-surface-600" />
+          {!collapsed && <span className="text-sm">Ir al inicio</span>}
+        </Link>
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          title={collapsed ? "Cerrar Sesion" : undefined}
+          className={`group flex items-center rounded-lg text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 w-full ${
+            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
+          }`}
+        >
+          {loggingOut ? (
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+          ) : (
+            <LogOut className="h-5 w-5 shrink-0" />
+          )}
+          {!collapsed && (
+            <span className="text-sm">{loggingOut ? "Cerrando..." : "Cerrar Sesion"}</span>
+          )}
+        </button>
+        {!collapsed && (
+          <p className="text-[11px] text-surface-400 px-3 pt-1">
             VirtuMall v1.0
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }
