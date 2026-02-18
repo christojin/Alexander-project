@@ -62,32 +62,16 @@ const popularCategories = [
   { name: "Google Play", image: "/images/google-play.svg", color: "from-blue-500 to-green-500", href: "/products?brand=google-play" },
 ];
 
-const bannerSlides = [
-  {
-    id: 1,
-    title: "Recarga Directa por ID",
-    subtitle: "Vemper Games",
-    description: "Free Fire, Genshin Impact, Honor of Kings y mas",
-    bgColor: "from-purple-700 via-indigo-700 to-blue-800",
-    brands: ["/images/freefire.svg", "/images/pubg.svg", "/images/fortnite.svg", "/images/roblox.svg"],
-  },
-  {
-    id: 2,
-    title: "Gift Cards Internacionales",
-    subtitle: "Las mejores marcas",
-    description: "Netflix, Spotify, PlayStation, Steam y mas",
-    bgColor: "from-blue-700 via-cyan-700 to-teal-800",
-    brands: ["/images/netflix.svg", "/images/spotify.svg", "/images/playstation.svg", "/images/steam.svg"],
-  },
-  {
-    id: 3,
-    title: "Paga con QR Bolivia",
-    subtitle: "Metodo principal",
-    description: "Sin necesidad de dolares ni tarjeta internacional",
-    bgColor: "from-green-700 via-emerald-700 to-teal-800",
-    brands: ["/images/amazon.svg", "/images/xbox.svg", "/images/disney.svg", "/images/google-play.svg"],
-  },
-];
+interface BannerSlide {
+  id: string;
+  title: string | null;
+  subtitle: string | null;
+  description: string | null;
+  imageUrl: string;
+  linkUrl: string | null;
+  bgColor: string | null;
+  brandImages: string[] | null;
+}
 
 // ============================================
 // COMPONENT
@@ -98,7 +82,21 @@ export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [promotedProducts, setPromotedProducts] = useState<Product[]>([]);
+  const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>([]);
 
+  // Fetch banners from database
+  useEffect(() => {
+    fetch("/api/banners")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.banners)) {
+          setBannerSlides(data.banners);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  // Fetch promoted products from database
   useEffect(() => {
     fetch("/api/products?promoted=true&limit=12")
       .then((res) => res.json())
@@ -110,18 +108,21 @@ export default function HomePage() {
       .catch(console.error);
   }, []);
 
+  const slideCount = bannerSlides.length;
+
   const nextSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev + 1) % bannerSlides.length);
-  }, []);
+    setCurrentSlide((prev) => (prev + 1) % (slideCount || 1));
+  }, [slideCount]);
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length);
+    setCurrentSlide((prev) => (prev - 1 + (slideCount || 1)) % (slideCount || 1));
   };
 
   useEffect(() => {
+    if (slideCount === 0) return;
     const interval = setInterval(nextSlide, 5000);
     return () => clearInterval(interval);
-  }, [nextSlide]);
+  }, [nextSlide, slideCount]);
 
   return (
     <div className="min-h-screen bg-surface-50">
@@ -187,58 +188,72 @@ export default function HomePage() {
             {/* Right: Banner Slider */}
             <div className="hidden lg:block relative">
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-                {bannerSlides.map((slide, index) => (
-                  <div
-                    key={slide.id}
-                    className={`absolute inset-0 transition-opacity duration-700 bg-gradient-to-br ${slide.bgColor} p-8 flex flex-col justify-between ${
-                      index === currentSlide ? "opacity-100" : "opacity-0"
-                    }`}
-                  >
-                    <div>
-                      <span className="inline-block bg-white/20 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full mb-4">
-                        {slide.subtitle}
-                      </span>
-                      <h3 className="text-3xl font-bold mb-2">{slide.title}</h3>
-                      <p className="text-white/70">{slide.description}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {slide.brands.map((src) => (
-                        <div key={src} className="w-14 h-14 bg-white/10 rounded-lg flex items-center justify-center p-2">
-                          <Image src={src} alt="" width={32} height={32} className="brightness-0 invert opacity-80" />
+                {bannerSlides.map((slide, index) => {
+                  const brands = Array.isArray(slide.brandImages) ? slide.brandImages : [];
+                  return (
+                    <Link
+                      key={slide.id}
+                      href={slide.linkUrl ?? "/products"}
+                      className={`absolute inset-0 transition-opacity duration-700 bg-gradient-to-br ${slide.bgColor ?? "from-primary-700 to-primary-900"} p-8 flex flex-col justify-between ${
+                        index === currentSlide ? "opacity-100 z-[1]" : "opacity-0"
+                      }`}
+                    >
+                      <div>
+                        {slide.subtitle && (
+                          <span className="inline-block bg-white/20 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full mb-4">
+                            {slide.subtitle}
+                          </span>
+                        )}
+                        <h3 className="text-3xl font-bold mb-2">{slide.title}</h3>
+                        {slide.description && (
+                          <p className="text-white/70">{slide.description}</p>
+                        )}
+                      </div>
+                      {brands.length > 0 && (
+                        <div className="flex items-center gap-3">
+                          {brands.map((src) => (
+                            <div key={src} className="w-14 h-14 bg-white/10 rounded-lg flex items-center justify-center p-2">
+                              <Image src={src} alt="" width={32} height={32} className="brightness-0 invert opacity-80" />
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                      )}
+                    </Link>
+                  );
+                })}
 
                 {/* Slider Controls */}
-                <button
-                  onClick={prevSlide}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center transition-colors z-10"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={nextSlide}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center transition-colors z-10"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-
-                {/* Dots */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                  {bannerSlides.map((_, index) => (
+                {bannerSlides.length > 1 && (
+                  <>
                     <button
-                      key={index}
-                      onClick={() => setCurrentSlide(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        index === currentSlide
-                          ? "bg-white w-6"
-                          : "bg-white/40 hover:bg-white/60"
-                      }`}
-                    />
-                  ))}
-                </div>
+                      onClick={prevSlide}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center transition-colors z-10"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={nextSlide}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center transition-colors z-10"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Dots */}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                      {bannerSlides.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentSlide(index)}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            index === currentSlide
+                              ? "bg-white w-6"
+                              : "bg-white/40 hover:bg-white/60"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

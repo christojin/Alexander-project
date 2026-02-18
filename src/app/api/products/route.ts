@@ -4,13 +4,14 @@ import { prisma } from "@/lib/prisma";
 /**
  * GET /api/products
  * Public product listing with filters and pagination.
- * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?page=, ?limit=
+ * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?region=, ?page=, ?limit=
  */
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const categorySlug = searchParams.get("category");
     const brandSlug = searchParams.get("brand");
+    const regionCode = searchParams.get("region");
     const search = searchParams.get("search")?.trim();
     const sort = searchParams.get("sort"); // "price_asc" | "price_desc" | "newest" | "popular"
     const promoted = searchParams.get("promoted");
@@ -38,6 +39,10 @@ export async function GET(req: NextRequest) {
 
     if (brandSlug) {
       where.brand = { slug: brandSlug };
+    }
+
+    if (regionCode) {
+      where.region = { code: regionCode };
     }
 
     if (promoted === "true") {

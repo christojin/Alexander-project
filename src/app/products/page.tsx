@@ -29,14 +29,23 @@ interface CatalogCategory {
   slug: string;
 }
 
+interface CatalogRegion {
+  id: string;
+  name: string;
+  code: string;
+  flagEmoji: string;
+}
+
 function ProductsContent() {
   const { addToCart } = useApp();
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [regions, setRegions] = useState<CatalogRegion[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("popular");
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -45,11 +54,14 @@ function ProductsContent() {
     searchParams.get("promoted") === "true"
   );
 
-  // Fetch categories for filter panel
+  // Fetch categories and regions for filter panel
   useEffect(() => {
     fetch("/api/catalog")
       .then((res) => res.json())
-      .then((data) => setCategories(data.categories ?? []))
+      .then((data) => {
+        setCategories(data.categories ?? []);
+        setRegions(data.regions ?? []);
+      })
       .catch(console.error);
   }, []);
 
@@ -59,6 +71,7 @@ function ProductsContent() {
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
     if (showPromotedOnly) params.set("promoted", "true");
+    if (selectedRegion) params.set("region", selectedRegion);
     params.set("sort", sortBy);
     params.set("limit", "50");
 
@@ -67,7 +80,7 @@ function ProductsContent() {
       .then((data) => setProducts(toFrontendProducts(data.products)))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [searchQuery, sortBy, showPromotedOnly]);
+  }, [searchQuery, sortBy, showPromotedOnly, selectedRegion]);
 
   useEffect(() => {
     fetchProducts();
@@ -93,8 +106,17 @@ function ProductsContent() {
     ? categories.find((c) => c.id === selectedCategory)?.name
     : null;
 
+  const selectedRegionName = selectedRegion
+    ? regions.find((r) => r.code === selectedRegion)?.name
+    : null;
+
+  const selectedRegionFlag = selectedRegion
+    ? regions.find((r) => r.code === selectedRegion)?.flagEmoji
+    : null;
+
   const activeFilterCount = [
     selectedCategory,
+    selectedRegion,
     deliveryFilter !== "all",
     showPromotedOnly,
   ].filter(Boolean).length;
@@ -227,7 +249,7 @@ function ProductsContent() {
         {/* Filter Panel */}
         {showFilters && (
           <div className="bg-white border border-surface-200 rounded-xl p-5 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Categories */}
               <div>
                 <h3 className="text-sm font-semibold text-surface-900 mb-3">
@@ -255,6 +277,39 @@ function ProductsContent() {
                       }`}
                     >
                       {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Region / Country Flags */}
+              <div>
+                <h3 className="text-sm font-semibold text-surface-900 mb-3">
+                  Region
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedRegion(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      !selectedRegion
+                        ? "bg-primary-600 text-white"
+                        : "bg-surface-100 text-surface-600 hover:bg-surface-200"
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {regions.map((region) => (
+                    <button
+                      key={region.id}
+                      onClick={() => setSelectedRegion(region.code)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        selectedRegion === region.code
+                          ? "bg-primary-600 text-white"
+                          : "bg-surface-100 text-surface-600 hover:bg-surface-200"
+                      }`}
+                    >
+                      <span className="text-sm leading-none">{region.flagEmoji}</span>
+                      {region.name}
                     </button>
                   ))}
                 </div>
@@ -290,7 +345,7 @@ function ProductsContent() {
         )}
 
         {/* Active Filters */}
-        {(selectedCategory || searchQuery || deliveryFilter !== "all" || showPromotedOnly) && (
+        {(selectedCategory || selectedRegion || searchQuery || deliveryFilter !== "all" || showPromotedOnly) && (
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <span className="text-xs text-surface-500">Filtros:</span>
             {selectedCategory && (
@@ -299,6 +354,16 @@ function ProductsContent() {
                 className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors"
               >
                 {selectedCategoryName}
+                <X className="w-3 h-3" />
+              </button>
+            )}
+            {selectedRegion && (
+              <button
+                onClick={() => setSelectedRegion(null)}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors"
+              >
+                <span className="text-sm leading-none">{selectedRegionFlag}</span>
+                {selectedRegionName}
                 <X className="w-3 h-3" />
               </button>
             )}
@@ -332,6 +397,7 @@ function ProductsContent() {
             <button
               onClick={() => {
                 setSelectedCategory(null);
+                setSelectedRegion(null);
                 setSearchQuery("");
                 setDeliveryFilter("all");
                 setShowPromotedOnly(false);

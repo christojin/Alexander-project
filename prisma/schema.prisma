@@ -681,8 +681,12 @@ model Withdrawal {
 model Banner {
   id           String   @id @default(cuid())
   title        String?
+  subtitle     String?
+  description  String?
   imageUrl     String
   linkUrl      String?  // click destination
+  bgColor      String?  // Tailwind gradient classes for styled banners
+  brandImages  Json?    // JSON array of brand image paths, e.g. ["/images/netflix.svg"]
   displayOrder Int      @default(0)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
