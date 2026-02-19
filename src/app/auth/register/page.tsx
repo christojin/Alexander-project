@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -32,7 +32,6 @@ export default function RegisterPage() {
 }
 
 function RegisterContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || undefined;
   const [fullName, setFullName] = useState("");
@@ -96,23 +95,19 @@ function RegisterContent() {
         });
       } catch {
         // If signIn throws, account was created but auto-login failed
-        setError("Cuenta creada exitosamente. Por favor inicia sesion manualmente.");
-        setIsLoading(false);
-        router.push("/auth/login");
+        window.location.href = "/auth/login";
         return;
       }
 
       if (!signInResult || signInResult.error) {
-        setError("Cuenta creada exitosamente. Por favor inicia sesion manualmente.");
-        setIsLoading(false);
-        router.push("/auth/login");
+        window.location.href = "/auth/login";
         return;
       }
 
-      // Step 3: Redirect to callback URL or role-based dashboard
+      // Step 3: Full page reload to avoid SessionProvider/router.push race condition
       const dashboardUrl = callbackUrl
         || (selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard");
-      router.push(dashboardUrl);
+      window.location.href = dashboardUrl;
     } catch {
       setError("Error al crear la cuenta. Intenta de nuevo.");
       setIsLoading(false);
