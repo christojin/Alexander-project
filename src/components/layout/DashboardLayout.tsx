@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   Bell,
   Menu,
@@ -18,7 +18,6 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import { logout } from "@/lib/auth-actions";
 import Sidebar from "./Sidebar";
 
 type Role = "buyer" | "seller" | "admin";
@@ -107,7 +106,7 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
   const handleLogout = async () => {
     setLoggingOut(true);
     setUserMenuOpen(false);
-    await logout();
+    await signOut({ callbackUrl: "/" });
   };
 
   const markAllRead = () => {
