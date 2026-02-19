@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -94,6 +94,13 @@ function LoginContent() {
       setIsLoading(false);
     }
   };
+
+  // Handle error from redirected auth flows
+  useEffect(() => {
+    if (errorParam === "CredentialsSignin") {
+      setError("Email o contrasena incorrectos");
+    }
+  }, [errorParam]);
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   Search,
   ShoppingCart,
@@ -22,7 +22,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { logout } from "@/lib/auth-actions";
 
 interface NavLink {
   label: string;
@@ -97,10 +96,12 @@ export default function Header() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setLoggingOut(true);
     setUserDropdownOpen(false);
-    await logout();
+    signOut({ callbackUrl: "/" }).catch(() => {
+      window.location.href = "/";
+    });
   };
 
   return (

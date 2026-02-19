@@ -103,15 +103,12 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setLoggingOut(true);
     setUserMenuOpen(false);
-    try {
-      await signOut({ redirect: false });
-    } catch {
-      // signOut may throw — ignore and redirect anyway
-    }
-    window.location.href = "/";
+    signOut({ callbackUrl: "/" }).catch(() => {
+      window.location.href = "/";
+    });
   };
 
   const markAllRead = () => {
