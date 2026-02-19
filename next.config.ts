@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  reactStrictMode: true,
+  productionBrowserSourceMaps: true,
 };
 
 export default nextConfig;
