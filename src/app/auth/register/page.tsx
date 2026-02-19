@@ -75,39 +75,44 @@ function RegisterContent() {
       // Step 1: Create user account via server action
       const result = await registerUser({
         name: fullName.trim(),
-        email,
+        email: email.toLowerCase().trim(),
         password,
         role: selectedRole,
       });
 
-      if (result?.error) {
-        setError(result.error);
+      if (!result || result.error) {
+        setError(result?.error || "Error al crear la cuenta");
         setIsLoading(false);
         return;
       }
 
       // Step 2: Sign in via client-side Auth.js
-      const signInResult = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (signInResult?.error) {
-        setError("Cuenta creada. Inicia sesion manualmente.");
+      let signInResult;
+      try {
+        signInResult = await signIn("credentials", {
+          email: email.toLowerCase().trim(),
+          password,
+          redirect: false,
+        });
+      } catch {
+        // If signIn throws, account was created but auto-login failed
+        setError("Cuenta creada exitosamente. Por favor inicia sesion manualmente.");
         setIsLoading(false);
+        router.push("/auth/login");
+        return;
+      }
+
+      if (!signInResult || signInResult.error) {
+        setError("Cuenta creada exitosamente. Por favor inicia sesion manualmente.");
+        setIsLoading(false);
+        router.push("/auth/login");
         return;
       }
 
       // Step 3: Redirect to callback URL or role-based dashboard
-      if (callbackUrl) {
-        router.push(callbackUrl);
-      } else {
-        const dashboardUrl = selectedRole === "SELLER"
-          ? "/seller/dashboard"
-          : "/buyer/dashboard";
-        router.push(dashboardUrl);
-      }
+      const dashboardUrl = callbackUrl
+        || (selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard");
+      router.push(dashboardUrl);
     } catch {
       setError("Error al crear la cuenta. Intenta de nuevo.");
       setIsLoading(false);

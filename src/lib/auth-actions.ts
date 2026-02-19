@@ -48,44 +48,61 @@ export async function registerUser(data: {
   password: string;
   role: "BUYER" | "SELLER";
 }) {
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email: data.email },
-  });
-
-  if (existingUser) {
-    return { error: "Este email ya esta registrado" };
-  }
-
-  // Validate password
-  if (data.password.length < 8) {
-    return { error: "La contrasena debe tener al menos 8 caracteres" };
-  }
-
-  // Create user directly via Prisma
-  const passwordHash = await bcrypt.hash(data.password, 12);
-
-  const user = await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      passwordHash,
-      role: data.role,
-      isActive: true,
-    },
-  });
-
-  // Create seller profile if registering as seller
-  if (data.role === "SELLER") {
-    await prisma.sellerProfile.create({
-      data: {
-        userId: user.id,
-        storeName: `Tienda de ${data.name}`,
-        storeDescription: "",
-        status: "PENDING",
-      },
+  try {
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email.toLowerCase().trim() },
     });
-  }
 
-  return { success: true };
+    if (existingUser) {
+      return { error: "Este email ya esta registrado" };
+    }
+
+    // Validate password
+    if (data.password.length < 8) {
+      return { error: "La contrasena debe tener al menos 8 caracteres" };
+    }
+
+    // Create user directly via Prisma
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    if (data.role === "SELLER") {
+      // Use transaction to ensure User + SellerProfile are created atomically
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            name: data.name.trim(),
+            email: data.email.toLowerCase().trim(),
+            passwordHash,
+            role: "SELLER",
+            isActive: true,
+          },
+        });
+
+        await tx.sellerProfile.create({
+          data: {
+            userId: user.id,
+            storeName: `Tienda de ${data.name.trim()}`,
+            storeDescription: "",
+            status: "PENDING",
+          },
+        });
+      });
+    } else {
+      await prisma.user.create({
+        data: {
+          name: data.name.trim(),
+          email: data.email.toLowerCase().trim(),
+          passwordHash,
+          role: "BUYER",
+          isActive: true,
+        },
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("[registerUser] Error:", error);
+    return { error: "Error al crear la cuenta. Intenta de nuevo." };
+  }
 }

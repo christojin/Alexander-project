@@ -52,26 +52,52 @@ export async function POST(req: NextRequest) {
     // Determine role (only BUYER or SELLER allowed from registration)
     const userRole = role === "SELLER" ? "SELLER" : "BUYER";
 
-    // Create user
+    // Create user (with transaction for seller to ensure atomicity)
+    if (userRole === "SELLER") {
+      const result = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            passwordHash,
+            role: "SELLER",
+          },
+        });
+
+        await tx.sellerProfile.create({
+          data: {
+            userId: newUser.id,
+            storeName: `Tienda de ${name.trim()}`,
+            storeDescription: "",
+            status: "PENDING",
+          },
+        });
+
+        return newUser;
+      });
+
+      return NextResponse.json(
+        {
+          message: "Cuenta creada exitosamente",
+          user: {
+            id: result.id,
+            name: result.name,
+            email: result.email,
+            role: result.role,
+          },
+        },
+        { status: 201 }
+      );
+    }
+
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
         email: email.toLowerCase().trim(),
         passwordHash,
-        role: userRole,
+        role: "BUYER",
       },
     });
-
-    // If registering as seller, create pending seller profile
-    if (userRole === "SELLER") {
-      await prisma.sellerProfile.create({
-        data: {
-          userId: user.id,
-          storeName: `${name.trim()}'s Store`,
-          status: "PENDING",
-        },
-      });
-    }
 
     return NextResponse.json(
       {
