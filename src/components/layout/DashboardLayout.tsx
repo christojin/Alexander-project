@@ -106,7 +106,12 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
   const handleLogout = async () => {
     setLoggingOut(true);
     setUserMenuOpen(false);
-    await signOut({ callbackUrl: "/" });
+    try {
+      await signOut({ redirect: false });
+    } catch {
+      // signOut may throw — ignore and redirect anyway
+    }
+    window.location.href = "/";
   };
 
   const markAllRead = () => {
