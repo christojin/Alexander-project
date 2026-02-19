@@ -187,6 +187,7 @@ async function main() {
     create: {
       userId: seller1User.id,
       storeName: "Tienda Digital Bolivia",
+      slug: "tienda-digital-bolivia",
       storeDescription: "La mejor tienda de gift cards y cuentas streaming en Bolivia. Entrega inmediata y soporte 24/7.",
       commissionRate: 10.0,
       rating: 4.8,
@@ -207,6 +208,7 @@ async function main() {
     create: {
       userId: seller2User.id,
       storeName: "GiftZone Premium",
+      slug: "giftzone-premium",
       storeDescription: "Premium digital gift cards and streaming accounts. Fast delivery, competitive prices.",
       commissionRate: 10.0,
       rating: 4.6,

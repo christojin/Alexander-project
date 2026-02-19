@@ -23,6 +23,9 @@ import {
   LogOut,
   Home,
   Loader2,
+  ImageIcon,
+  FileCheck,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
@@ -49,6 +52,7 @@ const navigationByRole: Record<Role, NavItem[]> = {
   ],
   seller: [
     { label: "Dashboard", href: "/seller/dashboard", icon: LayoutDashboard },
+    { label: "Mi Tienda", href: "/seller/profile", icon: Store },
     { label: "Verificacion KYC", href: "/seller/kyc", icon: ShieldCheck },
     { label: "Mis Productos", href: "/seller/products", icon: Package },
     { label: "Pedidos", href: "/seller/orders", icon: ClipboardList },
@@ -58,7 +62,9 @@ const navigationByRole: Record<Role, NavItem[]> = {
   admin: [
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
     { label: "Usuarios", href: "/admin/users", icon: Users },
+    { label: "Verificacion KYC", href: "/admin/kyc", icon: FileCheck },
     { label: "Productos", href: "/admin/products", icon: Package },
+    { label: "Banners", href: "/admin/banners", icon: ImageIcon },
     { label: "Categorias", href: "/admin/categories", icon: Grid3X3 },
     { label: "Comisiones", href: "/admin/commissions", icon: Percent },
     { label: "Integraciones API", href: "/admin/api-integrations", icon: Plug },

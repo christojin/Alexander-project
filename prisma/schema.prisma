@@ -55,6 +55,8 @@ model User {
   sentMessages   ChatMessage[]    @relation("MessageSender")
   notifications  Notification[]
   readAnnouncements AnnouncementRead[]
+  chatsAsBuyer   ChatConversation[] @relation("BuyerChats")
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -97,6 +99,8 @@ model SellerProfile {
   id              String           @id @default(cuid())
   userId          String           @unique
   storeName       String
+  slug            String?          @unique
+  storePhoto      String?
   storeDescription String?
   commissionRate  Float            @default(10.0)
   rating          Float            @default(0)
@@ -122,6 +126,7 @@ model SellerProfile {
   chatsSeller     ChatConversation[] @relation("SellerChats")
   withdrawals     Withdrawal[]
 
+  @@index([status])
   @@map("seller_profiles")
 }
 
@@ -137,6 +142,7 @@ model KYCDocument {
 
   seller SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 
+  @@index([sellerId])
   @@map("kyc_documents")
 }
 
@@ -264,6 +270,9 @@ model Product {
   streamingAccounts StreamingAccount[]
   orderItems        OrderItem[]
 
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([isActive, isDeleted])
   @@map("products")
 }
 
@@ -401,6 +410,9 @@ model Order {
   payment  Payment?
   tickets  Ticket[]
 
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([createdAt])
   @@map("orders")
 }
 
@@ -506,6 +518,7 @@ model ChatConversation {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  buyer    User          @relation("BuyerChats", fields: [buyerId], references: [id])
   seller   SellerProfile @relation("SellerChats", fields: [sellerId], references: [id])
   messages ChatMessage[]
 
@@ -740,5 +753,8 @@ model AuditLog {
   details     Json?    // snapshot of deleted/changed data
   createdAt   DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
   @@map("audit_logs")
 }

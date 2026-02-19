@@ -62,7 +62,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    ...authConfig.callbacks,
+    async jwt({ token, user, account, trigger, session }) {
+      if (user) {
+        token.id = user.id as string;
+
+        // For OAuth users (Google, etc.), fetch role from database
+        if (account?.provider !== "credentials") {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id as string },
+            include: { sellerProfile: true },
+          });
+          token.role = dbUser?.role ?? "BUYER";
+          token.sellerStatus = dbUser?.sellerProfile?.status ?? null;
+        } else {
+          token.role = (user as { role?: string }).role ?? "BUYER";
+          token.sellerStatus = (user as { sellerStatus?: string | null }).sellerStatus ?? null;
+        }
+      }
+      if (trigger === "update" && session) {
+        token.name = session.name ?? token.name;
+        token.role = session.role ?? token.role;
+        token.sellerStatus = session.sellerStatus ?? token.sellerStatus;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.sellerStatus = token.sellerStatus as string | null;
+      }
+      return session;
+    },
     async signIn({ user, account }) {
       if (account?.provider !== "credentials") {
         const existingUser = await prisma.user.findUnique({
@@ -77,7 +108,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   events: {
     async createUser({ user }) {
-      console.log(`[Auth] New user created: ${user.email}`);
+      console.log(`[Auth] New user created via OAuth: ${user.email}`);
     },
   },
 });

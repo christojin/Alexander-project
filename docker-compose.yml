@@ -38,6 +38,8 @@ services:
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
       - NEXT_PUBLIC_APP_NAME=VirtuMall
       - REDIS_URL=redis://redis:6379
+    volumes:
+      - uploads_data:/app/public/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -78,3 +80,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

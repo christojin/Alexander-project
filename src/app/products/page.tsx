@@ -78,6 +78,8 @@ function ProductsContent() {
   const [showPromotedOnly, setShowPromotedOnly] = useState(
     searchParams.get("promoted") === "true"
   );
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
   // Fetch categories and regions for filter panel
   useEffect(() => {
@@ -97,6 +99,8 @@ function ProductsContent() {
     if (searchQuery) params.set("search", searchQuery);
     if (showPromotedOnly) params.set("promoted", "true");
     if (selectedRegion) params.set("region", selectedRegion);
+    if (minPrice) params.set("minPrice", minPrice);
+    if (maxPrice) params.set("maxPrice", maxPrice);
     params.set("sort", sortBy);
     params.set("limit", "50");
 
@@ -105,7 +109,7 @@ function ProductsContent() {
       .then((data) => setProducts(toFrontendProducts(data.products)))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [searchQuery, sortBy, showPromotedOnly, selectedRegion]);
+  }, [searchQuery, sortBy, showPromotedOnly, selectedRegion, minPrice, maxPrice]);
 
   useEffect(() => {
     fetchProducts();
@@ -144,6 +148,8 @@ function ProductsContent() {
     selectedRegion,
     deliveryFilter !== "all",
     showPromotedOnly,
+    minPrice,
+    maxPrice,
   ].filter(Boolean).length;
 
   return (
@@ -274,7 +280,7 @@ function ProductsContent() {
         {/* Filter Panel */}
         {showFilters && (
           <div className="bg-white border border-surface-200 rounded-xl p-5 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Categories */}
               <div>
                 <h3 className="text-sm font-semibold text-surface-900 mb-3">
@@ -340,6 +346,34 @@ function ProductsContent() {
                 </div>
               </div>
 
+              {/* Price Range */}
+              <div>
+                <h3 className="text-sm font-semibold text-surface-900 mb-3">
+                  Rango de precio (USD)
+                </h3>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    min={0}
+                    step={0.01}
+                    className="w-full px-3 py-1.5 rounded-lg border border-surface-200 bg-white text-sm text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <span className="text-surface-400 text-sm">—</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    min={0}
+                    step={0.01}
+                    className="w-full px-3 py-1.5 rounded-lg border border-surface-200 bg-white text-sm text-surface-900 placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
               {/* Delivery Type */}
               <div>
                 <h3 className="text-sm font-semibold text-surface-900 mb-3">
@@ -370,7 +404,7 @@ function ProductsContent() {
         )}
 
         {/* Active Filters */}
-        {(selectedCategory || selectedRegion || searchQuery || deliveryFilter !== "all" || showPromotedOnly) && (
+        {(selectedCategory || selectedRegion || searchQuery || deliveryFilter !== "all" || showPromotedOnly || minPrice || maxPrice) && (
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <span className="text-xs text-surface-500">Filtros:</span>
             {selectedCategory && (
@@ -423,6 +457,15 @@ function ProductsContent() {
                 <X className="w-3 h-3" />
               </button>
             )}
+            {(minPrice || maxPrice) && (
+              <button
+                onClick={() => { setMinPrice(""); setMaxPrice(""); }}
+                className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium hover:bg-primary-100 transition-colors"
+              >
+                Precio: {minPrice ? `$${minPrice}` : "$0"} — {maxPrice ? `$${maxPrice}` : "∞"}
+                <X className="w-3 h-3" />
+              </button>
+            )}
             <button
               onClick={() => {
                 setSelectedCategory(null);
@@ -430,6 +473,8 @@ function ProductsContent() {
                 setSearchQuery("");
                 setDeliveryFilter("all");
                 setShowPromotedOnly(false);
+                setMinPrice("");
+                setMaxPrice("");
               }}
               className="text-xs text-surface-500 hover:text-surface-700 underline ml-1"
             >

@@ -11,11 +11,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
 
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { id },
+    const seller = await prisma.sellerProfile.findFirst({
+      where: { OR: [{ slug: id }, { id: id }] },
       select: {
         id: true,
         storeName: true,
+        slug: true,
+        storePhoto: true,
         storeDescription: true,
         rating: true,
         totalReviews: true,
@@ -33,6 +35,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         country: {
           select: { name: true, code: true, flagEmoji: true },
         },
+        businessHours: {
+          select: {
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
+            isClosed: true,
+          },
+          orderBy: { dayOfWeek: "asc" },
+        },
       },
     });
 
@@ -48,7 +59,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const categorySlug = searchParams.get("category");
 
     const productWhere: Record<string, unknown> = {
-      sellerId: id,
+      sellerId: seller.id,
       isActive: true,
       isDeleted: false,
     };

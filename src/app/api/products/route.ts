@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 /**
  * GET /api/products
  * Public product listing with filters and pagination.
- * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?region=, ?page=, ?limit=
+ * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?region=, ?minPrice=, ?maxPrice=, ?page=, ?limit=
  */
 export async function GET(req: NextRequest) {
   try {
@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get("sort"); // "price_asc" | "price_desc" | "newest" | "popular"
     const promoted = searchParams.get("promoted");
     const sellerId = searchParams.get("seller");
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "20")));
     const skip = (page - 1) * limit;
@@ -51,6 +53,12 @@ export async function GET(req: NextRequest) {
 
     if (sellerId) {
       where.sellerId = sellerId;
+    }
+
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) (where.price as Record<string, unknown>).gte = parseFloat(minPrice);
+      if (maxPrice) (where.price as Record<string, unknown>).lte = parseFloat(maxPrice);
     }
 
     // Sorting

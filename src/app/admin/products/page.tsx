@@ -1,50 +1,92 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { products as mockProducts } from "@/data/mock/products";
-import { categories } from "@/data/mock/categories";
-import { sellers } from "@/data/mock/users";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
-import type { Product } from "@/types";
 import {
   Search,
   Filter,
   Pencil,
   Trash2,
   X,
-  Package,
   Eye,
   EyeOff,
   ImageIcon,
+  Loader2,
+  Star,
 } from "lucide-react";
 
+interface AdminProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  originalPrice: number | null;
+  stockCount: number;
+  soldCount: number;
+  isActive: boolean;
+  isPromoted: boolean;
+  createdAt: string;
+  image: string | null;
+  category: { id: string; name: string } | null;
+  brand: { id: string; name: string } | null;
+  region: { id: string; name: string } | null;
+  seller: { id: string; storeName: string; user: { name: string } | null } | null;
+}
+
+interface SelectOption {
+  id: string;
+  name?: string;
+  storeName?: string;
+}
+
 export default function AdminProductsPage() {
-  const [productList, setProductList] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [categories, setCategories] = useState<SelectOption[]>([]);
+  const [sellers, setSellers] = useState<SelectOption[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSeller, setFilterSeller] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchProducts = () => {
+    setLoading(true);
+    fetch("/api/admin/products")
+      .then((res) => res.json())
+      .then((data) => {
+        setProducts(data.products ?? []);
+        setCategories(data.categories ?? []);
+        setSellers(data.sellers ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const filteredProducts = useMemo(() => {
-    let list = productList;
+    let list = products;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          p.sellerName.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q)
+          (p.seller?.storeName ?? "").toLowerCase().includes(q) ||
+          (p.brand?.name ?? "").toLowerCase().includes(q)
       );
     }
     if (filterCategory) {
-      list = list.filter((p) => p.categoryId === filterCategory);
+      list = list.filter((p) => p.category?.id === filterCategory);
     }
     if (filterSeller) {
-      list = list.filter((p) => p.sellerId === filterSeller);
+      list = list.filter((p) => p.seller?.id === filterSeller);
     }
     if (filterStatus === "active") {
       list = list.filter((p) => p.isActive);
@@ -52,32 +94,64 @@ export default function AdminProductsPage() {
       list = list.filter((p) => !p.isActive);
     }
     return list;
-  }, [productList, search, filterCategory, filterSeller, filterStatus]);
+  }, [products, search, filterCategory, filterSeller, filterStatus]);
 
-  const handleToggleActive = (productId: string) => {
-    setProductList((prev) =>
-      prev.map((p) =>
-        p.id === productId ? { ...p, isActive: !p.isActive } : p
-      )
-    );
+  const handleToggleActive = async (product: AdminProduct) => {
+    try {
+      await fetch(`/api/admin/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !product.isActive }),
+      });
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, isActive: !p.isActive } : p
+        )
+      );
+    } catch (error) {
+      console.error("Error toggling product:", error);
+    }
   };
 
-  const handleEditProduct = () => {
+  const handleEditProduct = async () => {
     if (!editingProduct) return;
-    setProductList((prev) =>
-      prev.map((p) => (p.id === editingProduct.id ? editingProduct : p))
-    );
-    setEditingProduct(null);
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/products/${editingProduct.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingProduct.name,
+          description: editingProduct.description,
+          price: editingProduct.price,
+          stockCount: editingProduct.stockCount,
+          isActive: editingProduct.isActive,
+          isPromoted: editingProduct.isPromoted,
+          categoryId: editingProduct.category?.id,
+        }),
+      });
+      setEditingProduct(null);
+      fetchProducts();
+    } catch (error) {
+      console.error("Error updating product:", error);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    setProductList((prev) => prev.filter((p) => p.id !== productId));
-    setDeleteConfirm(null);
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      await fetch(`/api/admin/products/${productId}`, { method: "DELETE" });
+      setDeleteConfirm(null);
+      fetchProducts();
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    }
   };
 
-  const activeCount = productList.filter((p) => p.isActive).length;
-  const inactiveCount = productList.filter((p) => !p.isActive).length;
-  const totalStock = productList.reduce((s, p) => s + p.stockCount, 0);
+  const activeCount = products.filter((p) => p.isActive).length;
+  const inactiveCount = products.filter((p) => !p.isActive).length;
+  const totalStock = products.reduce((s, p) => s + p.stockCount, 0);
 
   return (
     <DashboardLayout role="admin">
@@ -97,7 +171,7 @@ export default function AdminProductsPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-slate-500">Total productos</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">
-              {productList.length}
+              {products.length}
             </p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -198,147 +272,158 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Producto
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Vendedor
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Categoria
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Precio
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Stock
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Vendidos
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredProducts.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="transition-colors hover:bg-slate-50"
-                  >
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
-                          <ImageIcon className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900">
-                            {product.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {product.brand} -- {product.region}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <p className="text-sm font-medium text-slate-700">
-                        {product.sellerName}
-                      </p>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-                        {product.categoryName}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div>
-                        <p className="text-sm font-medium text-slate-900">
-                          {formatCurrency(product.price)}
-                        </p>
-                        {product.originalPrice && (
-                          <p className="text-xs text-slate-400 line-through">
-                            {formatCurrency(product.originalPrice)}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <span
-                        className={cn(
-                          "text-sm font-medium",
-                          product.stockCount < 10
-                            ? "text-red-600"
-                            : product.stockCount < 30
-                            ? "text-amber-600"
-                            : "text-slate-900"
-                        )}
-                      >
-                        {product.stockCount}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                      {product.soldCount}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <button
-                        onClick={() => handleToggleActive(product.id)}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                          product.isActive
-                            ? "bg-green-100 text-green-700 hover:bg-green-200"
-                            : "bg-red-100 text-red-700 hover:bg-red-200"
-                        )}
-                      >
-                        {product.isActive ? (
-                          <Eye className="h-3 w-3" />
-                        ) : (
-                          <EyeOff className="h-3 w-3" />
-                        )}
-                        {product.isActive ? "Activo" : "Inactivo"}
-                      </button>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setEditingProduct({ ...product })}
-                          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirm(product.id)}
-                          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredProducts.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
-                      No se encontraron productos
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
           </div>
-        </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Producto
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Vendedor
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Categoria
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Precio
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Stock
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Vendidos
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Estado
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredProducts.map((product) => (
+                    <tr
+                      key={product.id}
+                      className="transition-colors hover:bg-slate-50"
+                    >
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100">
+                            <ImageIcon className="h-5 w-5 text-slate-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-slate-900">
+                                {product.name}
+                              </p>
+                              {product.isPromoted && (
+                                <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {product.brand?.name ?? "—"} — {product.region?.name ?? "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <p className="text-sm font-medium text-slate-700">
+                          {product.seller?.storeName ?? "—"}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                          {product.category?.name ?? "—"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {formatCurrency(Number(product.price))}
+                          </p>
+                          {product.originalPrice && (
+                            <p className="text-xs text-slate-400 line-through">
+                              {formatCurrency(Number(product.originalPrice))}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <span
+                          className={cn(
+                            "text-sm font-medium",
+                            product.stockCount < 10
+                              ? "text-red-600"
+                              : product.stockCount < 30
+                              ? "text-amber-600"
+                              : "text-slate-900"
+                          )}
+                        >
+                          {product.stockCount}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
+                        {product.soldCount}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <button
+                          onClick={() => handleToggleActive(product)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                            product.isActive
+                              ? "bg-green-100 text-green-700 hover:bg-green-200"
+                              : "bg-red-100 text-red-700 hover:bg-red-200"
+                          )}
+                        >
+                          {product.isActive ? (
+                            <Eye className="h-3 w-3" />
+                          ) : (
+                            <EyeOff className="h-3 w-3" />
+                          )}
+                          {product.isActive ? "Activo" : "Inactivo"}
+                        </button>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setEditingProduct({ ...product })}
+                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(product.id)}
+                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredProducts.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-6 py-12 text-center text-sm text-slate-500"
+                      >
+                        No se encontraron productos
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Edit Product Modal */}
@@ -397,9 +482,7 @@ export default function AdminProductsPage() {
                     value={editingProduct.price}
                     onChange={(e) =>
                       setEditingProduct((prev) =>
-                        prev
-                          ? { ...prev, price: Number(e.target.value) }
-                          : null
+                        prev ? { ...prev, price: Number(e.target.value) } : null
                       )
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -416,9 +499,7 @@ export default function AdminProductsPage() {
                     value={editingProduct.stockCount}
                     onChange={(e) =>
                       setEditingProduct((prev) =>
-                        prev
-                          ? { ...prev, stockCount: Number(e.target.value) }
-                          : null
+                        prev ? { ...prev, stockCount: Number(e.target.value) } : null
                       )
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -431,17 +512,14 @@ export default function AdminProductsPage() {
                   Categoria
                 </label>
                 <select
-                  value={editingProduct.categoryId}
+                  value={editingProduct.category?.id ?? ""}
                   onChange={(e) => {
-                    const cat = categories.find(
-                      (c) => c.id === e.target.value
-                    );
+                    const cat = categories.find((c) => c.id === e.target.value);
                     setEditingProduct((prev) =>
                       prev
                         ? {
                             ...prev,
-                            categoryId: e.target.value,
-                            categoryName: cat?.name || prev.categoryName,
+                            category: cat ? { id: cat.id, name: cat.name! } : prev.category,
                           }
                         : null
                     );
@@ -455,38 +533,6 @@ export default function AdminProductsPage() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Marca
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.brand}
-                    onChange={(e) =>
-                      setEditingProduct((prev) =>
-                        prev ? { ...prev, brand: e.target.value } : null
-                      )
-                    }
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Region
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.region}
-                    onChange={(e) =>
-                      setEditingProduct((prev) =>
-                        prev ? { ...prev, region: e.target.value } : null
-                      )
-                    }
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -499,10 +545,7 @@ export default function AdminProductsPage() {
                   }
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <label
-                  htmlFor="edit-prod-active"
-                  className="text-sm text-slate-700"
-                >
+                <label htmlFor="edit-prod-active" className="text-sm text-slate-700">
                   Producto activo
                 </label>
               </div>
@@ -510,24 +553,21 @@ export default function AdminProductsPage() {
                 <input
                   type="checkbox"
                   id="edit-prod-featured"
-                  checked={editingProduct.isFeatured}
+                  checked={editingProduct.isPromoted}
                   onChange={(e) =>
                     setEditingProduct((prev) =>
-                      prev ? { ...prev, isFeatured: e.target.checked } : null
+                      prev ? { ...prev, isPromoted: e.target.checked } : null
                     )
                   }
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <label
-                  htmlFor="edit-prod-featured"
-                  className="text-sm text-slate-700"
-                >
-                  Producto destacado
+                <label htmlFor="edit-prod-featured" className="text-sm text-slate-700">
+                  Producto destacado (aparece en pagina principal)
                 </label>
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-xs text-slate-500">
-                  Vendedor: <span className="font-medium text-slate-700">{editingProduct.sellerName}</span>
+                  Vendedor: <span className="font-medium text-slate-700">{editingProduct.seller?.storeName ?? "—"}</span>
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
                   Creado: <span className="font-medium text-slate-700">{formatDate(editingProduct.createdAt)}</span>
@@ -543,8 +583,10 @@ export default function AdminProductsPage() {
               </button>
               <button
                 onClick={handleEditProduct}
-                className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
               >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Guardar cambios
               </button>
             </div>
@@ -563,8 +605,8 @@ export default function AdminProductsPage() {
               Eliminar producto
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Esta seguro de que desea eliminar este producto? Esta accion no se
-              puede deshacer.
+              Esta seguro de que desea eliminar este producto? El producto sera
+              desactivado y marcado como eliminado.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button

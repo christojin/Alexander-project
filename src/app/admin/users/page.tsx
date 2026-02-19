@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { allUsers, sellers as mockSellers } from "@/data/mock/users";
-import { formatDate, cn, generateId } from "@/lib/utils";
-import type { User, Seller, UserRole } from "@/types";
+import { formatDate, cn } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -13,152 +11,260 @@ import {
   X,
   Star,
   BadgeCheck,
-  Shield,
   ShoppingBag,
   Store,
   Users as UsersIcon,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 type Tab = "all" | "buyers" | "sellers";
+
+/* ------------------------------------------------------------------ */
+/*  Types matching the API response from GET /api/admin/users          */
+/* ------------------------------------------------------------------ */
+
+interface SellerProfile {
+  id: string;
+  storeName: string;
+  slug: string;
+  commissionRate: number;
+  rating: number;
+  totalSales: number;
+  totalEarnings: number;
+  status: string;
+  marketType: string;
+  isVerified: boolean;
+}
+
+interface ApiUser {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string | null;
+  role: "BUYER" | "SELLER" | "ADMIN";
+  isActive: boolean;
+  createdAt: string;
+  sellerProfile: SellerProfile | null;
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 interface EditingUser {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: "BUYER" | "SELLER" | "ADMIN";
   isActive: boolean;
   storeName?: string;
   commissionRate?: number;
   isVerified?: boolean;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Helper: map tab selection to API role query param                   */
+/* ------------------------------------------------------------------ */
+
+function localRoleToApi(role: Tab): string | undefined {
+  const map: Record<Tab, string | undefined> = { all: undefined, buyers: "BUYER", sellers: "SELLER" };
+  return map[role];
+}
+
+/* ================================================================== */
+
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>(allUsers);
-  const [sellerData, setSellerData] = useState<Seller[]>(mockSellers);
+  /* ---- API data state ---- */
+  const [users, setUsers] = useState<ApiUser[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  /* ---- UI state ---- */
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<EditingUser | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const [newUser, setNewUser] = useState<EditingUser>({
-    id: "",
-    name: "",
-    email: "",
-    role: "buyer",
-    isActive: true,
-    storeName: "",
-    commissionRate: 10,
-    isVerified: false,
-  });
+  /* ---- Debounce search input ---- */
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const filteredUsers = useMemo(() => {
-    let list = users;
-    if (activeTab === "buyers") list = list.filter((u) => u.role === "buyer");
-    if (activeTab === "sellers") list = list.filter((u) => u.role === "seller");
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (u) =>
-          u.name.toLowerCase().includes(q) ||
-          u.email.toLowerCase().includes(q)
-      );
+  /* ---- Fetch users from API ---- */
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      const roleParam = localRoleToApi(activeTab);
+      if (roleParam) params.set("role", roleParam);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+      const res = await fetch(`/api/admin/users?${params.toString()}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Error ${res.status}`);
+      }
+      const data = await res.json();
+      setUsers(data.users);
+      setPagination(data.pagination);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar usuarios");
+    } finally {
+      setLoading(false);
     }
-    return list;
-  }, [users, activeTab, search]);
+  }, [activeTab, debouncedSearch]);
 
-  const getSellerInfo = (userId: string): Seller | undefined => {
-    return sellerData.find((s) => s.id === userId);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  /* ---- Counts for tabs (computed from current data when tab=all, otherwise show fetched total) ---- */
+  const [allCount, setAllCount] = useState(0);
+  const [buyerCount, setBuyerCount] = useState(0);
+  const [sellerCount, setSellerCount] = useState(0);
+
+  // Fetch counts separately so tabs always show correct totals
+  const fetchCounts = useCallback(async () => {
+    try {
+      const [allRes, buyerRes, sellerRes] = await Promise.all([
+        fetch("/api/admin/users?limit=1"),
+        fetch("/api/admin/users?role=BUYER&limit=1"),
+        fetch("/api/admin/users?role=SELLER&limit=1"),
+      ]);
+      if (allRes.ok) {
+        const d = await allRes.json();
+        setAllCount(d.pagination.total);
+      }
+      if (buyerRes.ok) {
+        const d = await buyerRes.json();
+        setBuyerCount(d.pagination.total);
+      }
+      if (sellerRes.ok) {
+        const d = await sellerRes.json();
+        setSellerCount(d.pagination.total);
+      }
+    } catch {
+      // Non-critical; counts will just stay at their previous values
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
+
+  /* ---- Get seller info for a user ---- */
+  const getSellerInfo = (user: ApiUser): SellerProfile | null => {
+    return user.sellerProfile;
   };
 
-  const handleToggleActive = (userId: string) => {
+  /* ---- Toggle active status via PATCH ---- */
+  const handleToggleActive = async (user: ApiUser) => {
+    // Optimistic update
     setUsers((prev) =>
       prev.map((u) =>
-        u.id === userId ? { ...u, isActive: !u.isActive } : u
+        u.id === user.id ? { ...u, isActive: !u.isActive } : u
       )
     );
-    setSellerData((prev) =>
-      prev.map((s) =>
-        s.id === userId ? { ...s, isActive: !s.isActive } : s
-      )
-    );
-  };
-
-  const handleAddUser = () => {
-    const id = `${newUser.role}-${generateId()}`;
-    const user: User = {
-      id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      isActive: newUser.isActive,
-      createdAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, user]);
-    if (newUser.role === "seller") {
-      const seller: Seller = {
-        ...user,
-        role: "seller",
-        storeName: newUser.storeName || "",
-        commissionRate: newUser.commissionRate || 10,
-        totalSales: 0,
-        totalEarnings: 0,
-        rating: 0,
-        totalReviews: 0,
-        isVerified: newUser.isVerified || false,
-      };
-      setSellerData((prev) => [...prev, seller]);
-    }
-    setShowAddModal(false);
-    setNewUser({
-      id: "",
-      name: "",
-      email: "",
-      role: "buyer",
-      isActive: true,
-      storeName: "",
-      commissionRate: 10,
-      isVerified: false,
-    });
-  };
-
-  const handleEditUser = () => {
-    if (!editingUser) return;
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === editingUser.id
-          ? { ...u, name: editingUser.name, email: editingUser.email, isActive: editingUser.isActive }
-          : u
-      )
-    );
-    if (editingUser.role === "seller") {
-      setSellerData((prev) =>
-        prev.map((s) =>
-          s.id === editingUser.id
-            ? {
-                ...s,
-                name: editingUser.name,
-                email: editingUser.email,
-                isActive: editingUser.isActive,
-                storeName: editingUser.storeName || s.storeName,
-                commissionRate: editingUser.commissionRate ?? s.commissionRate,
-                isVerified: editingUser.isVerified ?? s.isVerified,
-              }
-            : s
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !user.isActive }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === user.id ? { ...u, isActive: user.isActive } : u
+          )
+        );
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Error al actualizar estado");
+      }
+    } catch {
+      // Revert on failure
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === user.id ? { ...u, isActive: user.isActive } : u
         )
       );
+      alert("Error de conexion al actualizar estado");
     }
-    setEditingUser(null);
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    setSellerData((prev) => prev.filter((s) => s.id !== userId));
-    setDeleteConfirm(null);
+  /* ---- Edit user via PATCH ---- */
+  const handleEditUser = async () => {
+    if (!editingUser) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: editingUser.name,
+        email: editingUser.email,
+        isActive: editingUser.isActive,
+      };
+      if (editingUser.role === "SELLER") {
+        body.seller = {
+          storeName: editingUser.storeName,
+          commissionRate: editingUser.commissionRate,
+          isVerified: editingUser.isVerified,
+        };
+      }
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Error al actualizar usuario");
+        return;
+      }
+      setEditingUser(null);
+      fetchUsers();
+      fetchCounts();
+    } catch {
+      alert("Error de conexion al actualizar usuario");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const openEditModal = (user: User) => {
-    const sellerInfo = getSellerInfo(user.id);
+  /* ---- Deactivate user via DELETE ---- */
+  const handleDeleteUser = async (userId: string) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.error || "Error al desactivar usuario");
+        return;
+      }
+      setDeleteConfirm(null);
+      fetchUsers();
+      fetchCounts();
+    } catch {
+      alert("Error de conexion al desactivar usuario");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ---- Open edit modal ---- */
+  const openEditModal = (user: ApiUser) => {
+    const sellerInfo = getSellerInfo(user);
     setEditingUser({
       id: user.id,
       name: user.name,
@@ -171,32 +277,24 @@ export default function AdminUsersPage() {
     });
   };
 
+  /* ---- Tab config ---- */
   const tabs = [
-    { key: "all" as Tab, label: "Todos", icon: UsersIcon, count: users.length },
-    {
-      key: "buyers" as Tab,
-      label: "Compradores",
-      icon: ShoppingBag,
-      count: users.filter((u) => u.role === "buyer").length,
-    },
-    {
-      key: "sellers" as Tab,
-      label: "Vendedores",
-      icon: Store,
-      count: users.filter((u) => u.role === "seller").length,
-    },
+    { key: "all" as Tab, label: "Todos", icon: UsersIcon, count: allCount },
+    { key: "buyers" as Tab, label: "Compradores", icon: ShoppingBag, count: buyerCount },
+    { key: "sellers" as Tab, label: "Vendedores", icon: Store, count: sellerCount },
   ];
 
-  const getRoleBadge = (role: UserRole) => {
-    const styles: Record<UserRole, string> = {
-      admin: "bg-red-100 text-red-700",
-      seller: "bg-indigo-100 text-indigo-700",
-      buyer: "bg-slate-100 text-slate-700",
+  /* ---- Role badge ---- */
+  const getRoleBadge = (role: "BUYER" | "SELLER" | "ADMIN") => {
+    const styles: Record<string, string> = {
+      ADMIN: "bg-red-100 text-red-700",
+      SELLER: "bg-indigo-100 text-indigo-700",
+      BUYER: "bg-slate-100 text-slate-700",
     };
-    const labels: Record<UserRole, string> = {
-      admin: "Admin",
-      seller: "Vendedor",
-      buyer: "Comprador",
+    const labels: Record<string, string> = {
+      ADMIN: "Admin",
+      SELLER: "Vendedor",
+      BUYER: "Comprador",
     };
     return (
       <span
@@ -273,156 +371,180 @@ export default function AdminUsersPage() {
           />
         </div>
 
+        {/* Error state */}
+        {error && (
+          <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={fetchUsers}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-50"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Reintentar
+            </button>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white py-20 shadow-sm">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+              <p className="text-sm text-slate-500">Cargando usuarios...</p>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Nombre
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Rol
-                  </th>
-                  {(activeTab === "all" || activeTab === "sellers") && (
+        {!loading && !error && (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50/50">
                     <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Tienda
+                      Nombre
                     </th>
-                  )}
-                  {(activeTab === "all" || activeTab === "sellers") && (
                     <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Rating
+                      Email
                     </th>
-                  )}
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Registro
-                  </th>
-                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredUsers.map((user) => {
-                  const sellerInfo = getSellerInfo(user.id);
-                  return (
-                    <tr
-                      key={user.id}
-                      className="transition-colors hover:bg-slate-50"
-                    >
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-600">
-                            {user.name.charAt(0)}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-slate-900">
-                              {user.name}
-                            </span>
-                            {sellerInfo?.isVerified && (
-                              <BadgeCheck className="h-4 w-4 text-blue-500" />
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
-                        {user.email}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        {getRoleBadge(user.role)}
-                      </td>
-                      {(activeTab === "all" || activeTab === "sellers") && (
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
-                          {sellerInfo ? (
-                            <div>
-                              <p className="font-medium">{sellerInfo.storeName}</p>
-                              <p className="text-xs text-slate-500">
-                                {sellerInfo.commissionRate}% comision -- {sellerInfo.totalSales} ventas
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">--</span>
-                          )}
-                        </td>
-                      )}
-                      {(activeTab === "all" || activeTab === "sellers") && (
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Rol
+                    </th>
+                    {(activeTab === "all" || activeTab === "sellers") && (
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Tienda
+                      </th>
+                    )}
+                    {(activeTab === "all" || activeTab === "sellers") && (
+                      <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Rating
+                      </th>
+                    )}
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Estado
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Registro
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users.map((user) => {
+                    const sellerInfo = getSellerInfo(user);
+                    return (
+                      <tr
+                        key={user.id}
+                        className="transition-colors hover:bg-slate-50"
+                      >
                         <td className="whitespace-nowrap px-6 py-4">
-                          {sellerInfo ? (
-                            <div className="flex items-center gap-1">
-                              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                              <span className="text-sm font-medium text-slate-700">
-                                {sellerInfo.rating}
-                              </span>
-                              <span className="text-xs text-slate-400">
-                                ({sellerInfo.totalReviews})
-                              </span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-600">
+                              {user.name.charAt(0)}
                             </div>
-                          ) : (
-                            <span className="text-sm text-slate-400">--</span>
-                          )}
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-slate-900">
+                                {user.name}
+                              </span>
+                              {sellerInfo?.isVerified && (
+                                <BadgeCheck className="h-4 w-4 text-blue-500" />
+                              )}
+                            </div>
+                          </div>
                         </td>
-                      )}
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <button
-                          onClick={() => handleToggleActive(user.id)}
-                          className={cn(
-                            "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                            user.isActive ? "bg-green-500" : "bg-slate-300"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm",
-                              user.isActive
-                                ? "translate-x-6"
-                                : "translate-x-1"
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                          {user.email}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          {getRoleBadge(user.role)}
+                        </td>
+                        {(activeTab === "all" || activeTab === "sellers") && (
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
+                            {sellerInfo ? (
+                              <div>
+                                <p className="font-medium">{sellerInfo.storeName}</p>
+                                <p className="text-xs text-slate-500">
+                                  {sellerInfo.commissionRate}% comision -- {sellerInfo.totalSales} ventas
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">--</span>
                             )}
-                          />
-                        </button>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
-                        {formatDate(user.createdAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex items-center gap-2">
+                          </td>
+                        )}
+                        {(activeTab === "all" || activeTab === "sellers") && (
+                          <td className="whitespace-nowrap px-6 py-4">
+                            {sellerInfo ? (
+                              <div className="flex items-center gap-1">
+                                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                                <span className="text-sm font-medium text-slate-700">
+                                  {sellerInfo.rating}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-slate-400">--</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="whitespace-nowrap px-6 py-4">
                           <button
-                            onClick={() => openEditModal(user)}
-                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
+                            onClick={() => handleToggleActive(user)}
+                            className={cn(
+                              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+                              user.isActive ? "bg-green-500" : "bg-slate-300"
+                            )}
                           >
-                            <Pencil className="h-4 w-4" />
+                            <span
+                              className={cn(
+                                "inline-block h-4 w-4 rounded-full bg-white transition-transform shadow-sm",
+                                user.isActive
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              )}
+                            />
                           </button>
-                          <button
-                            onClick={() => setDeleteConfirm(user.id)}
-                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
+                          {formatDate(user.createdAt)}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEditModal(user)}
+                              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(user.id)}
+                              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {users.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-6 py-12 text-center text-sm text-slate-500"
+                      >
+                        No se encontraron usuarios
                       </td>
                     </tr>
-                  );
-                })}
-                {filteredUsers.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
-                      No se encontraron usuarios
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Add User Modal */}
@@ -441,146 +563,23 @@ export default function AdminUsersPage() {
               </button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Nombre
-                </label>
-                <input
-                  type="text"
-                  value={newUser.name}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="Nombre completo"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({ ...prev, email: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="email@ejemplo.com"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Rol
-                </label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({
-                      ...prev,
-                      role: e.target.value as UserRole,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="buyer">Comprador</option>
-                  <option value="seller">Vendedor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              {newUser.role === "seller" && (
-                <>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Nombre de tienda
-                    </label>
-                    <input
-                      type="text"
-                      value={newUser.storeName}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          storeName: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="Nombre de la tienda"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Tasa de comision (%)
-                    </label>
-                    <input
-                      type="number"
-                      value={newUser.commissionRate}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          commissionRate: Number(e.target.value),
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      min={0}
-                      max={100}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      id="new-verified"
-                      checked={newUser.isVerified}
-                      onChange={(e) =>
-                        setNewUser((prev) => ({
-                          ...prev,
-                          isVerified: e.target.checked,
-                        }))
-                      }
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label
-                      htmlFor="new-verified"
-                      className="text-sm text-slate-700"
-                    >
-                      Vendedor verificado
-                    </label>
-                  </div>
-                </>
-              )}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="new-active"
-                  checked={newUser.isActive}
-                  onChange={(e) =>
-                    setNewUser((prev) => ({
-                      ...prev,
-                      isActive: e.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label
-                  htmlFor="new-active"
-                  className="text-sm text-slate-700"
-                >
-                  Activo
-                </label>
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Registro de usuarios</p>
+                  <p className="mt-1">
+                    Los nuevos usuarios se crean a traves del proceso de registro en la plataforma.
+                    Desde aqui puedes gestionar los usuarios existentes usando las opciones de edicion y desactivacion.
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowAddModal(false)}
                 className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAddUser}
-                disabled={!newUser.name || !newUser.email}
-                className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Agregar
+                Cerrar
               </button>
             </div>
           </div>
@@ -652,7 +651,7 @@ export default function AdminUsersPage() {
                   Activo
                 </label>
               </div>
-              {editingUser.role === "seller" && (
+              {editingUser.role === "SELLER" && (
                 <>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -726,8 +725,10 @@ export default function AdminUsersPage() {
               </button>
               <button
                 onClick={handleEditUser}
-                className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Guardar cambios
               </button>
             </div>
@@ -743,11 +744,11 @@ export default function AdminUsersPage() {
               <Trash2 className="h-6 w-6 text-red-600" />
             </div>
             <h3 className="text-lg font-semibold text-slate-900">
-              Eliminar usuario
+              Desactivar usuario
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Esta seguro de que desea eliminar este usuario? Esta accion no se
-              puede deshacer.
+              Esta seguro de que desea desactivar este usuario? El usuario no podra
+              acceder a la plataforma.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
@@ -758,9 +759,11 @@ export default function AdminUsersPage() {
               </button>
               <button
                 onClick={() => handleDeleteUser(deleteConfirm)}
-                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Eliminar
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Desactivar
               </button>
             </div>
           </div>

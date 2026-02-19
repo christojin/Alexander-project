@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Star,
   BadgeCheck,
@@ -17,6 +18,7 @@ import {
   List,
   ArrowUpDown,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
@@ -25,9 +27,18 @@ import { useApp } from "@/context/AppContext";
 import { toFrontendProducts } from "@/lib/api-transforms";
 import type { Product } from "@/types";
 
+interface BusinessHour {
+  dayOfWeek: number;
+  openTime: string;
+  closeTime: string;
+  isClosed: boolean;
+}
+
 interface SellerInfo {
   id: string;
   storeName: string;
+  slug: string | null;
+  storePhoto: string | null;
   storeDescription: string | null;
   rating: number;
   totalReviews: number;
@@ -45,6 +56,7 @@ interface SellerInfo {
     code: string;
     flagEmoji: string | null;
   } | null;
+  businessHours: BusinessHour[];
 }
 
 function formatDate(dateStr: string) {
@@ -52,6 +64,29 @@ function formatDate(dateStr: string) {
     year: "numeric",
     month: "long",
   });
+}
+
+const DAY_NAMES = [
+  "Domingo",
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+];
+
+function isOpenNow(businessHours: BusinessHour[]): boolean {
+  const now = new Date();
+  const currentDay = now.getDay(); // 0=Sunday
+  const currentTime =
+    now.getHours().toString().padStart(2, "0") +
+    ":" +
+    now.getMinutes().toString().padStart(2, "0");
+
+  const todayHours = businessHours.find((h) => h.dayOfWeek === currentDay);
+  if (!todayHours || todayHours.isClosed) return false;
+  return currentTime >= todayHours.openTime && currentTime < todayHours.closeTime;
 }
 
 export default function SellerStorePage() {
@@ -127,9 +162,21 @@ export default function SellerStorePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Avatar */}
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm text-3xl font-bold">
-              {seller.storeName.charAt(0)}
-            </div>
+            {seller.storePhoto ? (
+              <div className="h-20 w-20 shrink-0 rounded-full overflow-hidden ring-4 ring-white/25">
+                <Image
+                  src={seller.storePhoto}
+                  alt={seller.storeName}
+                  width={80}
+                  height={80}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-3xl font-bold ring-4 ring-white/25">
+                {seller.storeName.charAt(0)}
+              </div>
+            )}
 
             {/* Info */}
             <div className="flex-1">
@@ -181,6 +228,58 @@ export default function SellerStorePage() {
           </div>
         </div>
       </div>
+
+      {/* Business Hours Section */}
+      {seller.businessHours.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          <div className="bg-white rounded-xl border border-surface-200 p-6 max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-surface-500" />
+                <h3 className="text-lg font-semibold text-surface-900">
+                  Horario de Atencion
+                </h3>
+              </div>
+              {isOpenNow(seller.businessHours) ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                  Abierto ahora
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  Cerrado ahora
+                </span>
+              )}
+            </div>
+            <ul className="space-y-1.5">
+              {DAY_NAMES.map((dayName, index) => {
+                const hours = seller.businessHours.find(
+                  (h) => h.dayOfWeek === index
+                );
+                const today = new Date().getDay() === index;
+                return (
+                  <li
+                    key={index}
+                    className={`flex items-center justify-between text-sm py-1 px-2 rounded ${
+                      today
+                        ? "bg-primary-50 font-medium text-primary-700"
+                        : "text-surface-600"
+                    }`}
+                  >
+                    <span>{dayName}</span>
+                    <span>
+                      {!hours || hours.isClosed
+                        ? "Cerrado"
+                        : `${hours.openTime} - ${hours.closeTime}`}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Products Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

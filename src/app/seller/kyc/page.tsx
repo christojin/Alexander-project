@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -22,6 +22,9 @@ import {
   FileText,
   Shield,
   BadgeCheck,
+  Loader2,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Sidebar } from "@/components/layout";
 import { cn } from "@/lib/utils";
@@ -50,9 +53,24 @@ interface UploadedFile {
   size: number;
   preview: string;
   type: string;
+  url?: string;
 }
 
 type KYCStep = 1 | 2 | 3;
+type KYCStatus = "loading" | "form" | "pending" | "approved" | "rejected";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface ExistingSellerData {
+  status: string;
+  storeName?: string;
+  storeDescription?: string;
+  marketType?: string;
+  website?: string;
+  kycDocuments?: any[];
+  rejectionReason?: string;
+  [key: string]: any;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const MARKET_TYPES = [
   { value: "GIFT_CARDS", label: "Gift Cards", description: "Tarjetas de regalo digitales" },
@@ -72,9 +90,18 @@ const COUNTRIES = [
 // ============================================
 
 export default function SellerKYCPage() {
+  const [kycStatus, setKycStatus] = useState<KYCStatus>("loading");
+  const [existingData, setExistingData] = useState<ExistingSellerData | null>(null);
+
   const [currentStep, setCurrentStep] = useState<KYCStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // File upload loading states
+  const [uploadingIdentity, setUploadingIdentity] = useState(false);
+  const [uploadingSelfie, setUploadingSelfie] = useState(false);
+  const [uploadingBusiness, setUploadingBusiness] = useState(false);
 
   // Form state
   const [personal, setPersonal] = useState<PersonalInfo>({
@@ -103,12 +130,35 @@ export default function SellerKYCPage() {
   const businessRef = useRef<HTMLInputElement>(null);
 
   // ============================================
+  // FETCH KYC STATUS ON MOUNT
+  // ============================================
+
+  useEffect(() => {
+    fetch("/api/seller/kyc")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.seller) {
+          const docs = data.seller.kycDocuments || [];
+          if (data.seller.status === "APPROVED") setKycStatus("approved");
+          else if (data.seller.status === "REJECTED") setKycStatus("rejected");
+          else if (docs.length > 0) setKycStatus("pending");
+          else setKycStatus("form");
+          setExistingData(data.seller);
+        } else {
+          setKycStatus("form");
+        }
+      })
+      .catch(() => setKycStatus("form"));
+  }, []);
+
+  // ============================================
   // HANDLERS
   // ============================================
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    setter: (file: UploadedFile | null) => void
+    setter: (file: UploadedFile | null) => void,
+    setUploading: (v: boolean) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -136,12 +186,40 @@ export default function SellerKYCPage() {
       ? URL.createObjectURL(file)
       : "";
 
-    setter({
-      name: file.name,
-      size: file.size,
-      preview,
-      type: file.type,
-    });
+    // Upload the file to /api/upload
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "kyc");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || "Error al subir el archivo");
+      }
+
+      const data = await res.json();
+
+      setter({
+        name: file.name,
+        size: file.size,
+        preview,
+        type: file.type,
+        url: data.url,
+      });
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        file: err instanceof Error ? err.message : "Error al subir el archivo",
+      }));
+    } finally {
+      setUploading(false);
+    }
   };
 
   const validateStep = (step: KYCStep): boolean => {
@@ -163,6 +241,8 @@ export default function SellerKYCPage() {
     if (step === 3) {
       if (!identityDoc) newErrors.identityDoc = "Documento de identidad es requerido";
       if (!selfieDoc) newErrors.selfieDoc = "Selfie con documento es requerida";
+      if (identityDoc && !identityDoc.url) newErrors.identityDoc = "El documento aun se esta subiendo";
+      if (selfieDoc && !selfieDoc.url) newErrors.selfieDoc = "La selfie aun se esta subiendo";
     }
 
     setErrors(newErrors);
@@ -183,16 +263,246 @@ export default function SellerKYCPage() {
     if (!validateStep(3)) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
 
-    // Simulate API call (will be replaced with real API)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      const res = await fetch("/api/seller/kyc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          personalInfo: {
+            fullName: personal.fullName,
+            phone: personal.phone,
+            country: personal.country,
+            city: personal.city,
+            address: personal.address,
+          },
+          businessInfo: {
+            storeName: business.storeName,
+            storeDescription: business.storeDescription,
+            marketType: business.marketType,
+            website: business.website,
+          },
+          documents: {
+            identityUrl: identityDoc?.url,
+            selfieUrl: selfieDoc?.url,
+            businessUrl: businessDoc?.url || undefined,
+          },
+        }),
+      });
 
-    setIsSubmitting(false);
-    setIsSubmitted(true);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || "Error al enviar la verificacion");
+      }
+
+      setIsSubmitted(true);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Error al enviar la verificacion"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ============================================
-  // SUCCESS STATE
+  // LOADING STATE
+  // ============================================
+
+  if (kycStatus === "loading") {
+    return (
+      <div className="flex min-h-screen bg-surface-50">
+        <Sidebar role="seller" />
+        <main className="flex-1 p-6 lg:p-8">
+          <div className="max-w-lg mx-auto mt-20 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-100 mx-auto mb-4">
+              <Loader2 className="w-8 h-8 text-surface-400 animate-spin" />
+            </div>
+            <p className="text-surface-500 text-sm">Cargando estado de verificacion...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================
+  // APPROVED STATE
+  // ============================================
+
+  if (kycStatus === "approved") {
+    return (
+      <div className="flex min-h-screen bg-surface-50">
+        <Sidebar role="seller" />
+        <main className="flex-1 p-6 lg:p-8">
+          <div className="max-w-lg mx-auto mt-20 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600 mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-bold text-surface-900 mb-3">
+              Cuenta verificada
+            </h1>
+            <p className="text-surface-600 mb-8">
+              Tu identidad ha sido verificada exitosamente. Ya puedes vender en VirtuMall.
+            </p>
+
+            <div className="bg-white border border-green-200 rounded-xl p-5 mb-8 text-left">
+              <div className="flex items-center gap-3 mb-4">
+                <BadgeCheck className="w-5 h-5 text-green-600" />
+                <span className="text-sm font-medium text-surface-900">Estado: Verificado</span>
+              </div>
+              {existingData && (
+                <div className="space-y-2 text-sm text-surface-600">
+                  {existingData.storeName && (
+                    <div className="flex justify-between">
+                      <span>Tienda:</span>
+                      <span className="font-medium text-surface-900">{existingData.storeName}</span>
+                    </div>
+                  )}
+                  {existingData.marketType && (
+                    <div className="flex justify-between">
+                      <span>Tipo:</span>
+                      <span className="font-medium text-surface-900">
+                        {MARKET_TYPES.find((m) => m.value === existingData.marketType)?.label || existingData.marketType}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/seller/dashboard"
+              className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium px-6 py-3 rounded-xl transition-colors"
+            >
+              Ir al dashboard
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================
+  // PENDING STATE
+  // ============================================
+
+  if (kycStatus === "pending") {
+    return (
+      <div className="flex min-h-screen bg-surface-50">
+        <Sidebar role="seller" />
+        <main className="flex-1 p-6 lg:p-8">
+          <div className="max-w-lg mx-auto mt-20 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-amber-600 mx-auto mb-6">
+              <Clock className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-bold text-surface-900 mb-3">
+              Verificacion en revision
+            </h1>
+            <p className="text-surface-600 mb-2">
+              Tu solicitud de verificacion KYC esta siendo revisada por nuestro equipo.
+            </p>
+            <p className="text-sm text-surface-500 mb-8">
+              Este proceso puede tomar entre 24-48 horas. Te notificaremos por correo
+              electronico cuando tu cuenta sea aprobada.
+            </p>
+
+            <div className="bg-white border border-amber-200 rounded-xl p-5 mb-8 text-left">
+              <div className="flex items-center gap-3 mb-4">
+                <Clock className="w-5 h-5 text-amber-500" />
+                <span className="text-sm font-medium text-surface-900">Estado: En revision</span>
+              </div>
+              {existingData && (
+                <div className="space-y-2 text-sm text-surface-600">
+                  {existingData.storeName && (
+                    <div className="flex justify-between">
+                      <span>Tienda:</span>
+                      <span className="font-medium text-surface-900">{existingData.storeName}</span>
+                    </div>
+                  )}
+                  {existingData.marketType && (
+                    <div className="flex justify-between">
+                      <span>Tipo:</span>
+                      <span className="font-medium text-surface-900">
+                        {MARKET_TYPES.find((m) => m.value === existingData.marketType)?.label || existingData.marketType}
+                      </span>
+                    </div>
+                  )}
+                  {existingData.kycDocuments && (
+                    <div className="flex justify-between">
+                      <span>Documentos:</span>
+                      <span className="font-medium text-surface-900">
+                        {existingData.kycDocuments.length} enviados
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/seller/dashboard"
+              className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium px-6 py-3 rounded-xl transition-colors"
+            >
+              Ir al dashboard
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================
+  // REJECTED STATE
+  // ============================================
+
+  if (kycStatus === "rejected") {
+    return (
+      <div className="flex min-h-screen bg-surface-50">
+        <Sidebar role="seller" />
+        <main className="flex-1 p-6 lg:p-8">
+          <div className="max-w-lg mx-auto mt-20 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-100 text-red-600 mx-auto mb-6">
+              <XCircle className="w-10 h-10" />
+            </div>
+            <h1 className="text-2xl font-bold text-surface-900 mb-3">
+              Verificacion rechazada
+            </h1>
+            <p className="text-surface-600 mb-2">
+              Tu solicitud de verificacion KYC ha sido rechazada.
+            </p>
+            {existingData?.rejectionReason && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800 mb-1">Motivo del rechazo:</p>
+                    <p className="text-sm text-red-700">{existingData.rejectionReason}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="text-sm text-surface-500 mb-8">
+              Puedes corregir los problemas y volver a enviar tu solicitud de verificacion.
+            </p>
+
+            <button
+              onClick={() => setKycStatus("form")}
+              className="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium px-6 py-3 rounded-xl transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Volver a enviar documentos
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ============================================
+  // SUCCESS STATE (after form submission)
   // ============================================
 
   if (isSubmitted) {
@@ -264,7 +574,7 @@ export default function SellerKYCPage() {
   ];
 
   // ============================================
-  // RENDER
+  // RENDER (form state)
   // ============================================
 
   return (
@@ -620,7 +930,12 @@ export default function SellerKYCPage() {
                   <label className="block text-sm font-medium text-surface-700 mb-2">
                     Documento de identidad (CI / Pasaporte) *
                   </label>
-                  {identityDoc ? (
+                  {uploadingIdentity ? (
+                    <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-4">
+                      <Loader2 className="w-5 h-5 text-primary-600 animate-spin shrink-0" />
+                      <p className="text-sm text-primary-700">Subiendo documento...</p>
+                    </div>
+                  ) : identityDoc ? (
                     <div className="flex items-center gap-3 bg-accent-50 border border-accent-200 rounded-lg px-4 py-3">
                       <FileText className="w-5 h-5 text-accent-600 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -661,7 +976,7 @@ export default function SellerKYCPage() {
                     ref={identityRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf"
-                    onChange={(e) => handleFileUpload(e, setIdentityDoc)}
+                    onChange={(e) => handleFileUpload(e, setIdentityDoc, setUploadingIdentity)}
                     className="hidden"
                   />
                 </div>
@@ -671,7 +986,12 @@ export default function SellerKYCPage() {
                   <label className="block text-sm font-medium text-surface-700 mb-2">
                     Selfie sosteniendo tu documento *
                   </label>
-                  {selfieDoc ? (
+                  {uploadingSelfie ? (
+                    <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-4">
+                      <Loader2 className="w-5 h-5 text-primary-600 animate-spin shrink-0" />
+                      <p className="text-sm text-primary-700">Subiendo selfie...</p>
+                    </div>
+                  ) : selfieDoc ? (
                     <div className="flex items-center gap-3 bg-accent-50 border border-accent-200 rounded-lg px-4 py-3">
                       {selfieDoc.preview ? (
                         <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0">
@@ -723,7 +1043,7 @@ export default function SellerKYCPage() {
                     ref={selfieRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => handleFileUpload(e, setSelfieDoc)}
+                    onChange={(e) => handleFileUpload(e, setSelfieDoc, setUploadingSelfie)}
                     className="hidden"
                   />
                 </div>
@@ -734,7 +1054,12 @@ export default function SellerKYCPage() {
                     Documento comercial (opcional)
                     <span className="text-xs text-surface-400 ml-1.5">NIT, licencia de negocio, etc.</span>
                   </label>
-                  {businessDoc ? (
+                  {uploadingBusiness ? (
+                    <div className="flex items-center gap-3 bg-primary-50 border border-primary-200 rounded-lg px-4 py-4">
+                      <Loader2 className="w-5 h-5 text-primary-600 animate-spin shrink-0" />
+                      <p className="text-sm text-primary-700">Subiendo documento comercial...</p>
+                    </div>
+                  ) : businessDoc ? (
                     <div className="flex items-center gap-3 bg-surface-50 border border-surface-200 rounded-lg px-4 py-3">
                       <FileText className="w-5 h-5 text-surface-500 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -764,7 +1089,7 @@ export default function SellerKYCPage() {
                     ref={businessRef}
                     type="file"
                     accept="image/jpeg,image/png,image/webp,application/pdf"
-                    onChange={(e) => handleFileUpload(e, setBusinessDoc)}
+                    onChange={(e) => handleFileUpload(e, setBusinessDoc, setUploadingBusiness)}
                     className="hidden"
                   />
                 </div>
@@ -808,27 +1133,35 @@ export default function SellerKYCPage() {
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className={cn(
-                    "flex items-center gap-2 bg-accent-600 hover:bg-accent-700 text-white font-medium px-6 py-2.5 rounded-xl transition-colors cursor-pointer",
-                    "disabled:opacity-50 disabled:pointer-events-none"
+                <div className="flex flex-col items-end gap-2">
+                  {submitError && (
+                    <div className="flex items-center gap-2 text-sm text-red-600">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{submitError}</span>
+                    </div>
                   )}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      Enviar verificacion
-                    </>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || uploadingIdentity || uploadingSelfie || uploadingBusiness}
+                    className={cn(
+                      "flex items-center gap-2 bg-accent-600 hover:bg-accent-700 text-white font-medium px-6 py-2.5 rounded-xl transition-colors cursor-pointer",
+                      "disabled:opacity-50 disabled:pointer-events-none"
+                    )}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Enviar verificacion
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           </div>
