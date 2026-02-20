@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -43,7 +43,19 @@ function RegisterContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isNavigating, setIsNavigating] = useState(false);
+  const leavingRef = useRef(false);
+
+  // Suppress removeChild errors during page transition caused by
+  // SessionProvider re-renders conflicting with browser navigation
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      if (leavingRef.current && e.message?.includes("removeChild")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("error", handler, true);
+    return () => window.removeEventListener("error", handler, true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,34 +98,23 @@ function RegisterContent() {
         return;
       }
 
-      // Step 2: Sign in via client-side Auth.js
-      let signInResult;
-      try {
-        signInResult = await signIn("credentials", {
-          email: email.toLowerCase().trim(),
-          password,
-          redirect: false,
-        });
-      } catch {
-        // If signIn throws, account was created but auto-login failed
-        window.location.href = "/auth/login";
-        return;
-      }
-
-      if (!signInResult || signInResult.error) {
-        window.location.href = "/auth/login";
-        return;
-      }
-
-      // Step 3: Freeze UI before navigating to prevent SessionProvider re-render
-      // from causing DOM conflicts during page transition
+      // Step 2: Sign in with redirect — let NextAuth handle the full navigation.
+      // Using redirect: true avoids React state changes after signIn,
+      // preventing SessionProvider re-render DOM conflicts.
       const dashboardUrl = callbackUrl
         || (selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard");
-      setIsNavigating(true);
-      // Allow React to render the loading screen before browser navigation
-      requestAnimationFrame(() => {
-        window.location.href = dashboardUrl;
-      });
+      leavingRef.current = true;
+      try {
+        await signIn("credentials", {
+          email: email.toLowerCase().trim(),
+          password,
+          callbackUrl: dashboardUrl,
+        });
+      } catch {
+        // signIn with redirect may throw in some environments
+      }
+      // Fallback: if signIn didn't navigate, force redirect
+      window.location.href = dashboardUrl;
     } catch {
       setError("Error al crear la cuenta. Intenta de nuevo.");
       setIsLoading(false);
@@ -130,18 +131,6 @@ function RegisterContent() {
       setIsGoogleLoading(false);
     }
   };
-
-  // Freeze UI during navigation to prevent DOM conflicts from SessionProvider re-renders
-  if (isNavigating) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-600/30 border-t-primary-600" />
-          <p className="text-sm text-surface-500">Preparando tu cuenta...</p>
-        </div>
-      </div>
-    );
-  }
 
   const roleOptions: {
     role: RegisterRole;

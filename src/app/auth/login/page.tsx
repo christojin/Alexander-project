@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -49,7 +49,19 @@ function LoginContent() {
       : ""
   );
   const [loadingRole, setLoadingRole] = useState<UserRole | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
+  const leavingRef = useRef(false);
+
+  // Suppress removeChild errors during page transition caused by
+  // SessionProvider re-renders conflicting with browser navigation
+  useEffect(() => {
+    const handler = (e: ErrorEvent) => {
+      if (leavingRef.current && e.message?.includes("removeChild")) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("error", handler, true);
+    return () => window.removeEventListener("error", handler, true);
+  }, []);
 
   // Demo login (development only)
   const handleDemoLogin = (role: UserRole) => {
@@ -61,10 +73,8 @@ function LoginContent() {
         seller: "/seller/dashboard",
         admin: "/admin/dashboard",
       };
-      setIsNavigating(true);
-      requestAnimationFrame(() => {
-        window.location.href = routes[role];
-      });
+      leavingRef.current = true;
+      window.location.href = routes[role];
     }, 600);
   };
 
@@ -91,12 +101,11 @@ function LoginContent() {
         return;
       }
 
-      // Freeze UI before navigating to prevent SessionProvider re-render
-      // from causing DOM conflicts during page transition
-      setIsNavigating(true);
-      requestAnimationFrame(() => {
-        window.location.href = callbackUrl || "/";
-      });
+      // Navigate immediately without changing any React state.
+      // Keeping the DOM stable prevents removeChild conflicts from
+      // SessionProvider re-renders during page transition.
+      leavingRef.current = true;
+      window.location.href = callbackUrl || "/";
     } catch {
       setError("Error al iniciar sesion. Intenta de nuevo.");
       setIsLoading(false);
@@ -118,18 +127,6 @@ function LoginContent() {
       setIsGoogleLoading(false);
     }
   };
-
-  // Freeze UI during navigation to prevent DOM conflicts from SessionProvider re-renders
-  if (isNavigating) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-600/30 border-t-primary-600" />
-          <p className="text-sm text-surface-500">Ingresando...</p>
-        </div>
-      </div>
-    );
-  }
 
   const demoButtons: { role: UserRole; label: string; icon: typeof User; description: string }[] = [
     {
