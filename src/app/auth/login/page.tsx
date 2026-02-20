@@ -49,6 +49,7 @@ function LoginContent() {
       : ""
   );
   const [loadingRole, setLoadingRole] = useState<UserRole | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Demo login (development only)
   const handleDemoLogin = (role: UserRole) => {
@@ -60,7 +61,10 @@ function LoginContent() {
         seller: "/seller/dashboard",
         admin: "/admin/dashboard",
       };
-      window.location.href = routes[role];
+      setIsNavigating(true);
+      requestAnimationFrame(() => {
+        window.location.href = routes[role];
+      });
     }, 600);
   };
 
@@ -87,8 +91,12 @@ function LoginContent() {
         return;
       }
 
-      // Redirect to callback URL or homepage
-      window.location.href = callbackUrl || "/";
+      // Freeze UI before navigating to prevent SessionProvider re-render
+      // from causing DOM conflicts during page transition
+      setIsNavigating(true);
+      requestAnimationFrame(() => {
+        window.location.href = callbackUrl || "/";
+      });
     } catch {
       setError("Error al iniciar sesion. Intenta de nuevo.");
       setIsLoading(false);
@@ -110,6 +118,18 @@ function LoginContent() {
       setIsGoogleLoading(false);
     }
   };
+
+  // Freeze UI during navigation to prevent DOM conflicts from SessionProvider re-renders
+  if (isNavigating) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-600/30 border-t-primary-600" />
+          <p className="text-sm text-surface-500">Ingresando...</p>
+        </div>
+      </div>
+    );
+  }
 
   const demoButtons: { role: UserRole; label: string; icon: typeof User; description: string }[] = [
     {

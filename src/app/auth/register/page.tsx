@@ -43,6 +43,7 @@ function RegisterContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,10 +105,15 @@ function RegisterContent() {
         return;
       }
 
-      // Step 3: Full page reload to avoid SessionProvider/router.push race condition
+      // Step 3: Freeze UI before navigating to prevent SessionProvider re-render
+      // from causing DOM conflicts during page transition
       const dashboardUrl = callbackUrl
         || (selectedRole === "SELLER" ? "/seller/dashboard" : "/buyer/dashboard");
-      window.location.href = dashboardUrl;
+      setIsNavigating(true);
+      // Allow React to render the loading screen before browser navigation
+      requestAnimationFrame(() => {
+        window.location.href = dashboardUrl;
+      });
     } catch {
       setError("Error al crear la cuenta. Intenta de nuevo.");
       setIsLoading(false);
@@ -124,6 +130,18 @@ function RegisterContent() {
       setIsGoogleLoading(false);
     }
   };
+
+  // Freeze UI during navigation to prevent DOM conflicts from SessionProvider re-renders
+  if (isNavigating) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-600/30 border-t-primary-600" />
+          <p className="text-sm text-surface-500">Preparando tu cuenta...</p>
+        </div>
+      </div>
+    );
+  }
 
   const roleOptions: {
     role: RegisterRole;
