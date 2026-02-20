@@ -172,9 +172,9 @@ function LoginContent() {
             <Image
               src="/images/brand/logo-full.png"
               alt="VirtuMall"
-              width={200}
-              height={50}
-              className="h-11 w-auto brightness-0 invert"
+              width={260}
+              height={65}
+              className="h-14 w-auto brightness-0 invert"
               priority
             />
           </Link>
@@ -238,9 +238,9 @@ function LoginContent() {
               <Image
                 src="/images/brand/logo-full.png"
                 alt="VirtuMall"
-                width={180}
-                height={45}
-                className="h-10 w-auto"
+                width={220}
+                height={55}
+                className="h-12 w-auto"
                 priority
               />
             </Link>

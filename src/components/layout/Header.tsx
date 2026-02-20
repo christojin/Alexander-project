@@ -35,7 +35,7 @@ const navLinks: NavLink[] = [
   { label: "Juegos", href: "/products?category=juegos" },
   { label: "Marcas", href: "/products?view=brands" },
   { label: "Tienda Oficial", href: "/products?seller=official", highlight: true, icon: Store },
-  { label: "Promociones", href: "/products?promoted=true", highlight: true, icon: Tag },
+  { label: "Ofertas", href: "/products?promoted=true", highlight: true, icon: Tag },
 ];
 
 const roleDashboardMap: Record<string, string> = {
@@ -119,17 +119,17 @@ export default function Header() {
             <Image
               src="/images/brand/logo-icon.png"
               alt="VirtuMall"
-              width={36}
-              height={36}
+              width={44}
+              height={44}
               className="sm:hidden"
               priority
             />
             <Image
               src="/images/brand/logo-full.png"
               alt="VirtuMall"
-              width={160}
-              height={40}
-              className="hidden sm:block h-9 w-auto"
+              width={200}
+              height={50}
+              className="hidden sm:block h-12 w-auto"
               priority
             />
           </Link>

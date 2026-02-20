@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  ShoppingCart,
+  ArrowRight,
   Star,
   Zap,
   Clock,
@@ -15,13 +15,11 @@ import { formatCurrency, cn } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
-  onAddToCart?: (product: Product) => void;
   viewMode?: "grid" | "list";
 }
 
 export default function ProductCard({
   product,
-  onAddToCart,
   viewMode = "grid",
 }: ProductCardProps) {
   const discountPercent =
@@ -116,19 +114,18 @@ export default function ProductCard({
                 )}
               </div>
             </div>
-            <button
-              onClick={() => onAddToCart?.(product)}
-              disabled={product.stockCount === 0}
+            <Link
+              href={`/products/${product.id}`}
               className={cn(
                 "flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors",
                 product.stockCount > 0
                   ? "bg-primary-600 hover:bg-primary-700 text-white"
-                  : "bg-surface-200 text-surface-400 cursor-not-allowed"
+                  : "bg-surface-200 text-surface-400 pointer-events-none"
               )}
             >
-              <ShoppingCart className="w-4 h-4" />
-              Comprar
-            </button>
+              <ArrowRight className="w-4 h-4" />
+              {product.stockCount > 0 ? "Ver producto" : "Agotado"}
+            </Link>
           </div>
         </div>
       </div>
@@ -139,7 +136,7 @@ export default function ProductCard({
   // GRID VIEW (default)
   // ============================================
   return (
-    <div className="group bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="group bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col h-full">
       {/* Image */}
       <div className="relative aspect-square bg-surface-100 overflow-hidden">
         {product.image ? (
@@ -211,20 +208,19 @@ export default function ProductCard({
           </div>
         </div>
 
-        {/* Buy Button */}
-        <button
-          onClick={() => onAddToCart?.(product)}
-          disabled={product.stockCount === 0}
+        {/* View Product Button */}
+        <Link
+          href={`/products/${product.id}`}
           className={cn(
             "w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 rounded-lg transition-colors",
             product.stockCount > 0
               ? "bg-primary-600 hover:bg-primary-700 text-white"
-              : "bg-surface-200 text-surface-400 cursor-not-allowed"
+              : "bg-surface-200 text-surface-400 pointer-events-none"
           )}
         >
-          <ShoppingCart className="w-3.5 h-3.5" />
-          {product.stockCount > 0 ? "Comprar ahora" : "Agotado"}
-        </button>
+          <ArrowRight className="w-3.5 h-3.5" />
+          {product.stockCount > 0 ? "Ver producto" : "Agotado"}
+        </Link>
 
         {/* Seller Info */}
         <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-surface-100">

@@ -14,7 +14,6 @@ import {
   CreditCard,
   Gift,
   Banknote,
-  ShoppingCart,
   SlidersHorizontal,
   ArrowUpDown,
   LayoutGrid,
@@ -25,7 +24,6 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
-import { useApp } from "@/context/AppContext";
 import { formatCurrency } from "@/lib/utils";
 import { toFrontendProducts } from "@/lib/api-transforms";
 import type { Product } from "@/types";
@@ -78,7 +76,6 @@ interface BannerSlide {
 // ============================================
 
 export default function HomePage() {
-  const { addToCart } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [promotedProducts, setPromotedProducts] = useState<Product[]>([]);
@@ -186,33 +183,33 @@ export default function HomePage() {
             </div>
 
             {/* Right: Banner Slider */}
-            <div className="hidden lg:block relative">
-              <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
+            <div className="relative mt-8 lg:mt-0">
+              <div className="relative rounded-2xl overflow-hidden aspect-[16/9] lg:aspect-[4/3]">
                 {bannerSlides.map((slide, index) => {
                   const brands = Array.isArray(slide.brandImages) ? slide.brandImages : [];
                   return (
                     <Link
                       key={slide.id}
                       href={slide.linkUrl ?? "/products"}
-                      className={`absolute inset-0 transition-opacity duration-700 bg-gradient-to-br ${slide.bgColor ?? "from-primary-700 to-primary-900"} p-8 flex flex-col justify-between ${
+                      className={`absolute inset-0 transition-opacity duration-700 bg-gradient-to-br ${slide.bgColor ?? "from-primary-700 to-primary-900"} p-5 lg:p-8 flex flex-col justify-between ${
                         index === currentSlide ? "opacity-100 z-[1]" : "opacity-0"
                       }`}
                     >
                       <div>
                         {slide.subtitle && (
-                          <span className="inline-block bg-white/20 backdrop-blur-sm text-xs font-semibold px-3 py-1 rounded-full mb-4">
+                          <span className="inline-block bg-white/20 backdrop-blur-sm text-[10px] lg:text-xs font-semibold px-2 lg:px-3 py-0.5 lg:py-1 rounded-full mb-2 lg:mb-4">
                             {slide.subtitle}
                           </span>
                         )}
-                        <h3 className="text-3xl font-bold mb-2">{slide.title}</h3>
+                        <h3 className="text-xl lg:text-3xl font-bold mb-1 lg:mb-2">{slide.title}</h3>
                         {slide.description && (
-                          <p className="text-white/70">{slide.description}</p>
+                          <p className="text-white/70 text-sm lg:text-base line-clamp-2">{slide.description}</p>
                         )}
                       </div>
                       {brands.length > 0 && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 lg:gap-3">
                           {brands.map((src) => (
-                            <div key={src} className="w-14 h-14 bg-white/10 rounded-lg flex items-center justify-center p-2">
+                            <div key={src} className="w-10 h-10 lg:w-14 lg:h-14 bg-white/10 rounded-lg flex items-center justify-center p-1.5 lg:p-2">
                               <Image src={src} alt="" width={32} height={32} className="brightness-0 invert opacity-80" />
                             </div>
                           ))}
@@ -304,25 +301,25 @@ export default function HomePage() {
             <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 sm:gap-4 sm:overflow-visible sm:pb-0">
           {popularCategories.map((cat) => (
             <Link
               key={cat.name}
               href={cat.href}
-              className="group relative rounded-xl overflow-hidden aspect-[4/3] bg-gradient-to-br hover:shadow-lg transition-shadow"
+              className="group relative rounded-xl overflow-hidden shrink-0 w-28 aspect-[4/3] sm:w-auto bg-gradient-to-br hover:shadow-lg transition-shadow"
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-90`} />
-              <div className="relative h-full flex flex-col items-center justify-center p-4">
+              <div className="relative h-full flex flex-col items-center justify-center p-3 sm:p-4">
                 {cat.image && (
                   <Image
                     src={cat.image}
                     alt={cat.name}
                     width={48}
                     height={48}
-                    className="mb-2 brightness-0 invert opacity-90"
+                    className="mb-1.5 sm:mb-2 brightness-0 invert opacity-90 w-8 h-8 sm:w-12 sm:h-12"
                   />
                 )}
-                <span className="text-sm font-semibold text-white">{cat.name}</span>
+                <span className="text-xs sm:text-sm font-semibold text-white text-center">{cat.name}</span>
                 <ChevronRight className="w-4 h-4 text-white/60 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </Link>
@@ -337,7 +334,7 @@ export default function HomePage() {
         {/* Section Header with Controls */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <h2 className="text-2xl font-bold text-surface-900">
-            Productos promocionados
+            Ofertas del dia
           </h2>
           <div className="flex items-center gap-3">
             <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-surface-200 bg-white text-sm font-medium text-surface-600 hover:bg-surface-50 transition-colors">
@@ -376,7 +373,7 @@ export default function HomePage() {
         {/* Product Grid */}
         <div className={
           viewMode === "grid"
-            ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"
+            ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4"
             : "flex flex-col gap-3"
         }>
           {promotedProducts.map((product) => (
@@ -453,14 +450,14 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Buy Button */}
-                <button
-                  onClick={() => addToCart(product)}
+                {/* View Product Button */}
+                <Link
+                  href={`/products/${product.id}`}
                   className="w-full flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
                 >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  Comprar ahora
-                </button>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                  Ver producto
+                </Link>
 
                 {/* Seller Info */}
                 <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-surface-100">

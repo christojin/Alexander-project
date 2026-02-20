@@ -506,18 +506,18 @@ function ProductsContent() {
               <ProductCard
                 key={product.id}
                 product={product}
-                onAddToCart={addToCart}
+
                 viewMode="list"
               />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
-                onAddToCart={addToCart}
+
                 viewMode="grid"
               />
             ))}
