@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   MessageSquare,
   ChevronDown,
@@ -15,21 +15,17 @@ import {
   Paperclip,
   ImageIcon,
   X as XIcon,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { Button, Tabs, Badge, EmptyState } from "@/components/ui";
-import { tickets as initialTickets } from "@/data/mock/tickets";
 import type { Ticket, TicketMessage, TicketStatus } from "@/types";
 import {
   formatDateTime,
   getStatusColor,
   getStatusLabel,
   cn,
-  generateId,
 } from "@/lib/utils";
-
-const SELLER_ID = "seller-1";
-const SELLER_NAME = "DigitalKeys Bolivia";
 
 const statusTabs = [
   { key: "all", label: "Todos" },
@@ -49,14 +45,31 @@ const priorityConfig: Record<
 };
 
 export default function SellerTicketsPage() {
-  const [ticketsList, setTicketsList] = useState<Ticket[]>(
-    initialTickets.filter((t) => t.sellerId === SELLER_ID)
-  );
+  const [ticketsList, setTicketsList] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const [attachedFiles, setAttachedFiles] = useState<Record<string, string[]>>({});
   const messagesEndRef = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const fetchTickets = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/seller/tickets");
+      if (!res.ok) throw new Error("Failed to fetch tickets");
+      const data: Ticket[] = await res.json();
+      setTicketsList(data);
+    } catch (err) {
+      console.error("Error fetching tickets:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
 
   const tabsWithCounts = useMemo(() => {
     return statusTabs.map((tab) => ({
@@ -100,50 +113,46 @@ export default function SellerTicketsPage() {
     }));
   };
 
-  const handleReply = (ticketId: string) => {
+  const handleReply = useCallback(async (ticketId: string) => {
     const message = replyInputs[ticketId]?.trim();
     if (!message) return;
 
-    const newMessage: TicketMessage = {
-      id: `msg-${generateId()}`,
-      senderId: SELLER_ID,
-      senderName: SELLER_NAME,
-      senderRole: "seller",
-      message,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch(`/api/seller/tickets/${ticketId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) throw new Error("Failed to send reply");
+      const updatedTicket: Ticket = await res.json();
+      setTicketsList((prev) =>
+        prev.map((t) => (t.id === ticketId ? updatedTicket : t))
+      );
+      setReplyInputs((prev) => ({ ...prev, [ticketId]: "" }));
+    } catch (err) {
+      console.error("Error sending reply:", err);
+    }
+  }, [replyInputs]);
 
-    setTicketsList((prev) =>
-      prev.map((t) =>
-        t.id === ticketId
-          ? {
-              ...t,
-              messages: [...t.messages, newMessage],
-              status:
-                t.status === "open"
-                  ? ("in_progress" as TicketStatus)
-                  : t.status,
-              updatedAt: new Date().toISOString(),
-            }
-          : t
-      )
-    );
-
-    setReplyInputs((prev) => ({ ...prev, [ticketId]: "" }));
-  };
-
-  const handleStatusChange = (
+  const handleStatusChange = useCallback(async (
     ticketId: string,
     newStatus: TicketStatus
   ) => {
-    setTicketsList((prev) =>
-      prev.map((t) =>
-        t.id === ticketId
-          ? { ...t, status: newStatus, updatedAt: new Date().toISOString() }
-          : t
-      )
-    );
-  };
+    try {
+      const res = await fetch(`/api/seller/tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      const updatedTicket: Ticket = await res.json();
+      setTicketsList((prev) =>
+        prev.map((t) => (t.id === ticketId ? updatedTicket : t))
+      );
+    } catch (err) {
+      console.error("Error updating ticket status:", err);
+    }
+  }, []);
 
   const getStatusBadgeVariant = (
     status: string
@@ -159,6 +168,16 @@ export default function SellerTicketsPage() {
     };
     return variants[status] || "neutral";
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="seller">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-8 animate-spin text-primary-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="seller">

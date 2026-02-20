@@ -125,7 +125,46 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
       data.price = price;
     }
-    if (originalPrice !== undefined) data.originalPrice = originalPrice || null;
+    if (originalPrice !== undefined) {
+      const finalPrice = (price !== undefined ? price : existing.price) as number;
+      const finalOriginal = originalPrice || null;
+
+      // Check if this creates a new offer (originalPrice > price)
+      const willBeOffer = finalOriginal !== null && finalOriginal > finalPrice;
+      const wasOffer = existing.originalPrice !== null && existing.originalPrice > existing.price;
+
+      if (willBeOffer && !wasOffer) {
+        // Count current offers for this seller (in-memory, Prisma can't do cross-column)
+        const sellerProducts = await prisma.product.findMany({
+          where: { sellerId: seller.id, originalPrice: { not: null }, isActive: true, isDeleted: false },
+          select: { id: true, price: true, originalPrice: true },
+        });
+        const currentOffers = sellerProducts.filter(
+          (p) => p.id !== id && p.originalPrice !== null && p.originalPrice > p.price
+        ).length;
+
+        if (currentOffers >= seller.offersQuota) {
+          return NextResponse.json(
+            {
+              error: seller.offersQuota === 0
+                ? "No tienes cuota de ofertas asignada. Contacta al administrador."
+                : `Has alcanzado tu limite de ${seller.offersQuota} productos en oferta`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Validate originalPrice > price when setting a discount
+      if (finalOriginal !== null && finalOriginal <= finalPrice) {
+        return NextResponse.json(
+          { error: "El precio original debe ser mayor al precio de venta" },
+          { status: 400 }
+        );
+      }
+
+      data.originalPrice = finalOriginal;
+    }
     if (productType !== undefined) data.productType = productType;
     if (deliveryType !== undefined) data.deliveryType = deliveryType;
     if (streamingMode !== undefined) data.streamingMode = streamingMode || null;

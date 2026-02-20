@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   DollarSign,
@@ -11,12 +11,11 @@ import {
   Plus,
   ArrowRight,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { StatsCard, Badge, Button } from "@/components/ui";
-import { orders } from "@/data/mock/orders";
-import { products } from "@/data/mock/products";
-import { tickets } from "@/data/mock/tickets";
+import { Order } from "@/types";
 import {
   formatCurrency,
   formatDate,
@@ -25,8 +24,17 @@ import {
   cn,
 } from "@/lib/utils";
 
-const SELLER_ID = "seller-1";
-const COMMISSION_RATE = 10;
+interface SellerDashboardData {
+  storeName: string;
+  commissionRate: number;
+  totalSales: number;
+  totalCommission: number;
+  netEarnings: number;
+  activeProducts: number;
+  pendingTickets: number;
+  recentOrders: Order[];
+  allOrders: Order[];
+}
 
 const dailySalesData = [
   { day: "Lun", amount: 85 },
@@ -39,32 +47,39 @@ const dailySalesData = [
 ];
 
 export default function SellerDashboardPage() {
-  const sellerOrders = orders.filter((o) => o.sellerId === SELLER_ID);
-  const sellerProducts = products.filter((p) => p.sellerId === SELLER_ID);
-  const sellerTickets = tickets.filter((t) => t.sellerId === SELLER_ID);
+  const [data, setData] = useState<SellerDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalSales = sellerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const totalCommission = sellerOrders.reduce(
-    (sum, o) => sum + o.commissionAmount,
-    0
-  );
-  const netEarnings = sellerOrders.reduce(
-    (sum, o) => sum + o.sellerEarnings,
-    0
-  );
-  const activeProducts = sellerProducts.filter((p) => p.isActive).length;
-  const pendingTickets = sellerTickets.filter(
-    (t) => t.status === "open" || t.status === "in_progress"
-  ).length;
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const res = await fetch("/api/seller/dashboard");
+        if (!res.ok) throw new Error("Failed to fetch dashboard data");
+        const json: SellerDashboardData = await res.json();
+        setData(json);
+      } catch (error) {
+        console.error("Error fetching seller dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const recentOrders = [...sellerOrders]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-    .slice(0, 5);
+    fetchDashboard();
+  }, []);
 
   const maxDailyAmount = Math.max(...dailySalesData.map((d) => d.amount));
+
+  if (loading) {
+    return (
+      <DashboardLayout role="seller">
+        <div className="flex h-96 items-center justify-center">
+          <Loader2 className="size-8 animate-spin text-primary-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const recentOrders = data?.recentOrders ?? [];
 
   return (
     <DashboardLayout role="seller">
@@ -75,7 +90,7 @@ export default function SellerDashboardPage() {
             Dashboard
           </h1>
           <p className="mt-1 text-sm text-surface-500">
-            Resumen de tu tienda DigitalKeys Bolivia
+            Resumen de tu tienda {data?.storeName}
           </p>
         </div>
 
@@ -84,30 +99,30 @@ export default function SellerDashboardPage() {
           <StatsCard
             icon={<ShoppingCart />}
             label="Ventas totales"
-            value={formatCurrency(totalSales)}
+            value={formatCurrency(data?.totalSales ?? 0)}
             trend={{ value: 12, direction: "up" }}
           />
           <StatsCard
             icon={<DollarSign />}
             label="Ingresos netos"
-            value={formatCurrency(netEarnings)}
+            value={formatCurrency(data?.netEarnings ?? 0)}
             trend={{ value: 8, direction: "up" }}
           />
           <StatsCard
             icon={<Percent />}
             label="Comision pagada"
-            value={formatCurrency(totalCommission)}
+            value={formatCurrency(data?.totalCommission ?? 0)}
           />
           <StatsCard
             icon={<Package />}
             label="Productos activos"
-            value={activeProducts}
+            value={data?.activeProducts ?? 0}
             trend={{ value: 2, direction: "up" }}
           />
           <StatsCard
             icon={<TicketCheck />}
             label="Tickets pendientes"
-            value={pendingTickets}
+            value={data?.pendingTickets ?? 0}
           />
         </div>
 

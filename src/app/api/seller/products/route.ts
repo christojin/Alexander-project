@@ -71,11 +71,20 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // Count offers in-memory (Prisma can't do cross-column comparison)
+    const offersUsed = products.filter(
+      (p) => p.originalPrice !== null && p.originalPrice > p.price && !p.isDeleted
+    ).length;
+
     return NextResponse.json({
       products,
       promotion: {
         quota: seller.promotionQuota,
         used: promotedCount,
+      },
+      offers: {
+        quota: seller.offersQuota,
+        used: offersUsed,
       },
     });
   } catch (error) {

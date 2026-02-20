@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   ShoppingCart,
   CheckCircle,
@@ -10,10 +10,10 @@ import {
   CreditCard,
   Copy,
   Check,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { Button, Tabs, Badge, EmptyState } from "@/components/ui";
-import { orders as initialOrders } from "@/data/mock/orders";
 import type { Order, OrderStatus } from "@/types";
 import {
   formatCurrency,
@@ -23,9 +23,6 @@ import {
   getPaymentMethodLabel,
   cn,
 } from "@/lib/utils";
-
-const SELLER_ID = "seller-1";
-const COMMISSION_RATE = 10;
 
 const statusTabs = [
   { key: "all", label: "Todos" },
@@ -37,11 +34,28 @@ const statusTabs = [
 ];
 
 export default function SellerOrdersPage() {
-  const [ordersList, setOrdersList] = useState<Order[]>(
-    initialOrders.filter((o) => o.sellerId === SELLER_ID)
-  );
+  const [ordersList, setOrdersList] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/seller/orders");
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      const data: Order[] = await res.json();
+      setOrdersList(data);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   const tabsWithCounts = useMemo(() => {
     return statusTabs.map((tab) => ({
@@ -64,33 +78,55 @@ export default function SellerOrdersPage() {
     );
   }, [ordersList, activeTab]);
 
-  const handleApproveAndDeliver = (orderId: string) => {
-    setOrdersList((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: "completed" as OrderStatus,
-              paymentStatus: "completed",
-              completedAt: new Date().toISOString(),
-              digitalCodes:
-                o.digitalCodes.length > 0
-                  ? o.digitalCodes
-                  : [`AUTO-${orderId}-${Date.now()}`],
-            }
-          : o
-      )
-    );
+  const handleApproveAndDeliver = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/seller/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      if (!res.ok) throw new Error("Failed to approve order");
+
+      setOrdersList((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                status: "completed" as OrderStatus,
+                paymentStatus: "completed",
+                completedAt: new Date().toISOString(),
+                digitalCodes:
+                  o.digitalCodes.length > 0
+                    ? o.digitalCodes
+                    : [`AUTO-${orderId}-${Date.now()}`],
+              }
+            : o
+        )
+      );
+    } catch (error) {
+      console.error("Error approving order:", error);
+    }
   };
 
-  const handleMarkUnderReview = (orderId: string) => {
-    setOrdersList((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status: "under_review" as OrderStatus }
-          : o
-      )
-    );
+  const handleMarkUnderReview = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/seller/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "under_review" }),
+      });
+      if (!res.ok) throw new Error("Failed to mark order under review");
+
+      setOrdersList((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, status: "under_review" as OrderStatus }
+            : o
+        )
+      );
+    } catch (error) {
+      console.error("Error marking order under review:", error);
+    }
   };
 
   const copyCode = (code: string) => {
@@ -115,6 +151,16 @@ export default function SellerOrdersPage() {
     };
     return variants[status] || "neutral";
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="seller">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-8 animate-spin text-surface-400" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="seller">

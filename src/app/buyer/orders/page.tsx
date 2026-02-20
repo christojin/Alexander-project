@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -21,10 +21,10 @@ import {
   User,
   Lock,
   CalendarDays,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
-import { orders } from "@/data/mock/orders";
-import type { OrderStatus } from "@/types";
+import type { Order, OrderStatus } from "@/types";
 import {
   formatCurrency,
   formatDate,
@@ -34,8 +34,6 @@ import {
   getPaymentMethodLabel,
   cn,
 } from "@/lib/utils";
-
-const BUYER_ID = "buyer-1";
 
 type StatusFilter = "all" | OrderStatus;
 
@@ -48,15 +46,39 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 ];
 
 export default function BuyerOrdersPage() {
-  const allBuyerOrders = orders.filter((o) => o.buyerId === BUYER_ID);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    async function fetchOrders() {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetch("/api/buyer/orders");
+        if (!res.ok) {
+          throw new Error("Error al cargar los pedidos");
+        }
+        const data: Order[] = await res.json();
+        setOrders(data);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Error al cargar los pedidos"
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchOrders();
+  }, []);
+
   const filteredOrders = useMemo(() => {
-    return allBuyerOrders.filter((order) => {
+    return orders.filter((order) => {
       const matchesStatus =
         statusFilter === "all" || order.status === statusFilter;
       const query = searchQuery.toLowerCase().trim();
@@ -67,7 +89,7 @@ export default function BuyerOrdersPage() {
         order.id.toLowerCase().includes(query);
       return matchesStatus && matchesSearch;
     });
-  }, [allBuyerOrders, searchQuery, statusFilter]);
+  }, [orders, searchQuery, statusFilter]);
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrder((prev) => (prev === orderId ? null : orderId));
@@ -92,6 +114,32 @@ export default function BuyerOrdersPage() {
     const maskedParts = parts.slice(0, -1).map(() => "****");
     return [...maskedParts, lastPart].join("-");
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="buyer">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout role="buyer">
+        <div className="flex flex-col items-center justify-center py-32 text-center">
+          <p className="text-sm text-red-600">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="buyer">

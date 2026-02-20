@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Megaphone,
   Star,
+  Tag,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import {
@@ -136,7 +137,10 @@ export default function SellerProductsPage() {
   const [importFileName, setImportFileName] = useState("");
   const [promotionQuota, setPromotionQuota] = useState(0);
   const [promotionUsed, setPromotionUsed] = useState(0);
+  const [offersQuota, setOffersQuota] = useState(0);
+  const [offersUsed, setOffersUsed] = useState(0);
   const [togglingPromotion, setTogglingPromotion] = useState<string | null>(null);
+  const [togglingOffer, setTogglingOffer] = useState<string | null>(null);
 
   // ---------- Data Fetching ----------
 
@@ -149,6 +153,10 @@ export default function SellerProductsPage() {
       if (data.promotion) {
         setPromotionQuota(data.promotion.quota);
         setPromotionUsed(data.promotion.used);
+      }
+      if (data.offers) {
+        setOffersQuota(data.offers.quota);
+        setOffersUsed(data.offers.used);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
@@ -392,6 +400,33 @@ export default function SellerProductsPage() {
     }
   };
 
+  const toggleOffer = async (product: SellerProduct) => {
+    setTogglingOffer(product.id);
+    try {
+      const isCurrentlyOffer =
+        product.originalPrice !== null && product.originalPrice > product.price;
+      const newOriginalPrice = isCurrentlyOffer
+        ? null
+        : Math.round(product.price * 1.25);
+
+      const res = await fetch(`/api/seller/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ originalPrice: newOriginalPrice }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.error || "Error al cambiar oferta");
+        return;
+      }
+      await fetchProducts();
+    } catch {
+      alert("Error de conexion");
+    } finally {
+      setTogglingOffer(null);
+    }
+  };
+
   const updateForm = (field: keyof ProductForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -471,6 +506,29 @@ export default function SellerProductsPage() {
           </div>
         )}
 
+        {/* Offers Quota Banner */}
+        {offersQuota > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3">
+            <Tag className="h-5 w-5 shrink-0 text-emerald-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-emerald-900">
+                Productos en oferta: {offersUsed}/{offersQuota}
+              </p>
+              <p className="text-xs text-emerald-600">
+                Puedes poner hasta {offersQuota} productos en oferta con descuento. Aparecen en la seccion &quot;Ofertas del dia&quot;.
+              </p>
+            </div>
+            <div className="flex h-8 items-center rounded-full bg-emerald-100 px-3">
+              <span className={cn(
+                "text-sm font-bold",
+                offersUsed >= offersQuota ? "text-red-600" : "text-emerald-700"
+              )}>
+                {offersQuota - offersUsed} disponibles
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Search and Filters */}
         <SearchBar
           value={searchQuery}
@@ -536,6 +594,11 @@ export default function SellerProductsPage() {
                         <span className="flex items-center gap-1"><Star className="size-3 fill-current" /> Promo</span>
                       </Badge>
                     )}
+                    {product.originalPrice && product.originalPrice > product.price && (
+                      <Badge variant="success" size="sm">
+                        <span className="flex items-center gap-1"><Tag className="size-3" /> Oferta</span>
+                      </Badge>
+                    )}
                     <Badge
                       variant={product.isActive ? "success" : "neutral"}
                       size="sm"
@@ -571,26 +634,49 @@ export default function SellerProductsPage() {
                     {product.region && <span>{product.region.name}</span>}
                   </div>
 
-                  {/* Promotion Toggle */}
-                  {promotionQuota > 0 && product.isActive && (
-                    <div className="mt-3 border-t border-surface-100 pt-3">
-                      <button
-                        onClick={() => togglePromotion(product)}
-                        disabled={togglingPromotion === product.id || (!product.isPromoted && promotionUsed >= promotionQuota)}
-                        className={cn(
-                          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                          product.isPromoted
-                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                            : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                        )}
-                      >
-                        {togglingPromotion === product.id ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Megaphone className="size-3.5" />
-                        )}
-                        {product.isPromoted ? "Quitar promocion" : "Promocionar"}
-                      </button>
+                  {/* Promotion & Offer Toggles */}
+                  {(promotionQuota > 0 || offersQuota > 0) && product.isActive && (
+                    <div className="mt-3 flex flex-col gap-2 border-t border-surface-100 pt-3">
+                      {promotionQuota > 0 && (
+                        <button
+                          onClick={() => togglePromotion(product)}
+                          disabled={togglingPromotion === product.id || (!product.isPromoted && promotionUsed >= promotionQuota)}
+                          className={cn(
+                            "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                            product.isPromoted
+                              ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                              : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                          )}
+                        >
+                          {togglingPromotion === product.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Megaphone className="size-3.5" />
+                          )}
+                          {product.isPromoted ? "Quitar promocion" : "Promocionar"}
+                        </button>
+                      )}
+                      {offersQuota > 0 && (
+                        <button
+                          onClick={() => toggleOffer(product)}
+                          disabled={togglingOffer === product.id || (!(product.originalPrice !== null && product.originalPrice > product.price) && offersUsed >= offersQuota)}
+                          className={cn(
+                            "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                            product.originalPrice !== null && product.originalPrice > product.price
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                              : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                          )}
+                        >
+                          {togglingOffer === product.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Tag className="size-3.5" />
+                          )}
+                          {product.originalPrice !== null && product.originalPrice > product.price
+                            ? "Quitar oferta"
+                            : "Poner en oferta"}
+                        </button>
+                      )}
                     </div>
                   )}
 

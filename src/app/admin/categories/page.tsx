@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { categories as mockCategories } from "@/data/mock/categories";
-import { cn, generateId } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { Category } from "@/types";
 import {
   Plus,
@@ -26,6 +25,7 @@ import {
   Zap,
   Tag,
   Layers,
+  Loader2,
 } from "lucide-react";
 
 const iconOptions = [
@@ -74,58 +74,110 @@ const emptyForm: CategoryForm = {
 };
 
 export default function AdminCategoriesPage() {
-  const [categoryList, setCategoryList] = useState<Category[]>(mockCategories);
+  const [categoryList, setCategoryList] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [form, setForm] = useState<CategoryForm>(emptyForm);
 
-  const handleToggleActive = (catId: string) => {
-    setCategoryList((prev) =>
-      prev.map((c) =>
-        c.id === catId ? { ...c, isActive: !c.isActive } : c
-      )
-    );
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/admin/categories");
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      const data: Category[] = await res.json();
+      setCategoryList(data);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  const handleToggleActive = async (catId: string) => {
+    const category = categoryList.find((c) => c.id === catId);
+    if (!category) return;
+    try {
+      const res = await fetch(`/api/admin/categories/${catId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !category.isActive }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle category");
+      const updated: Category = await res.json();
+      setCategoryList((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c))
+      );
+    } catch (err) {
+      console.error("Error toggling category:", err);
+    }
   };
 
-  const handleAddCategory = () => {
-    const newCat: Category = {
-      id: `cat-${generateId()}`,
-      name: form.name,
-      slug: form.slug || slugify(form.name),
-      description: form.description,
-      icon: form.icon,
-      productCount: 0,
-      isActive: form.isActive,
-    };
-    setCategoryList((prev) => [...prev, newCat]);
-    setShowAddModal(false);
-    setForm(emptyForm);
+  const handleAddCategory = async () => {
+    try {
+      const res = await fetch("/api/admin/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          slug: form.slug || slugify(form.name),
+          description: form.description,
+          icon: form.icon,
+          isActive: form.isActive,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add category");
+      const newCat: Category = await res.json();
+      setCategoryList((prev) => [...prev, newCat]);
+      setShowAddModal(false);
+      setForm(emptyForm);
+    } catch (err) {
+      console.error("Error adding category:", err);
+    }
   };
 
-  const handleEditCategory = () => {
+  const handleEditCategory = async () => {
     if (!editingCategory) return;
-    setCategoryList((prev) =>
-      prev.map((c) =>
-        c.id === editingCategory.id
-          ? {
-              ...c,
-              name: form.name,
-              slug: form.slug || slugify(form.name),
-              description: form.description,
-              icon: form.icon,
-              isActive: form.isActive,
-            }
-          : c
-      )
-    );
-    setEditingCategory(null);
-    setForm(emptyForm);
+    try {
+      const res = await fetch(`/api/admin/categories/${editingCategory.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          slug: form.slug || slugify(form.name),
+          description: form.description,
+          icon: form.icon,
+          isActive: form.isActive,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to edit category");
+      const updated: Category = await res.json();
+      setCategoryList((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c))
+      );
+      setEditingCategory(null);
+      setForm(emptyForm);
+    } catch (err) {
+      console.error("Error editing category:", err);
+    }
   };
 
-  const handleDeleteCategory = (catId: string) => {
-    setCategoryList((prev) => prev.filter((c) => c.id !== catId));
-    setDeleteConfirm(null);
+  const handleDeleteCategory = async (catId: string) => {
+    try {
+      const res = await fetch(`/api/admin/categories/${catId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete category");
+      setCategoryList((prev) => prev.filter((c) => c.id !== catId));
+      setDeleteConfirm(null);
+    } catch (err) {
+      console.error("Error deleting category:", err);
+    }
   };
 
   const openEditModal = (cat: Category) => {
@@ -149,6 +201,16 @@ export default function AdminCategoriesPage() {
     (sum, c) => sum + c.productCount,
     0
   );
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex h-96 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">

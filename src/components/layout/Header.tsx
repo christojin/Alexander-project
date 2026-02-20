@@ -35,7 +35,7 @@ const navLinks: NavLink[] = [
   { label: "Juegos", href: "/products?category=juegos" },
   { label: "Marcas", href: "/products?view=brands" },
   { label: "Tienda Oficial", href: "/products?seller=official", highlight: true, icon: Store },
-  { label: "Ofertas", href: "/products?promoted=true", highlight: true, icon: Tag },
+  { label: "Ofertas", href: "/#ofertas", highlight: true, icon: Tag },
 ];
 
 const roleDashboardMap: Record<string, string> = {

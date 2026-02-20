@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ShoppingBag,
@@ -14,10 +14,10 @@ import {
   ArrowRight,
   Package,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
-import { orders } from "@/data/mock/orders";
-import { tickets } from "@/data/mock/tickets";
+import type { Order } from "@/types";
 import {
   formatCurrency,
   formatDate,
@@ -26,26 +26,52 @@ import {
   cn,
 } from "@/lib/utils";
 
-const BUYER_ID = "buyer-1";
+interface DashboardData {
+  totalPurchases: number;
+  totalSpent: number;
+  openTickets: number;
+  codesReceived: number;
+  recentOrders: Order[];
+}
 
 export default function BuyerDashboardPage() {
-  const buyerOrders = orders.filter((o) => o.buyerId === BUYER_ID);
-  const buyerTickets = tickets.filter((t) => t.buyerId === BUYER_ID);
-
-  const totalPurchases = buyerOrders.length;
-  const totalSpent = buyerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const openTickets = buyerTickets.filter(
-    (t) => t.status === "open" || t.status === "in_progress"
-  ).length;
-  const codesReceived = buyerOrders.reduce(
-    (sum, o) => sum + o.digitalCodes.length,
-    0
-  );
-
-  const recentOrders = buyerOrders.slice(0, 5);
-
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const res = await fetch("/api/buyer/dashboard");
+        if (!res.ok) throw new Error("Failed to fetch dashboard data");
+        const json: DashboardData = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error("Error fetching dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchDashboard();
+  }, []);
+
+  if (loading) {
+    return (
+      <DashboardLayout role="buyer">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const totalPurchases = data?.totalPurchases ?? 0;
+  const totalSpent = data?.totalSpent ?? 0;
+  const openTickets = data?.openTickets ?? 0;
+  const codesReceived = data?.codesReceived ?? 0;
+  const recentOrders = data?.recentOrders ?? [];
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrder((prev) => (prev === orderId ? null : orderId));

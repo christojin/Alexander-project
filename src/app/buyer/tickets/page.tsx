@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   Search,
   ChevronDown,
@@ -20,19 +20,13 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
-import { tickets as mockTickets } from "@/data/mock/tickets";
-import { orders } from "@/data/mock/orders";
-import type { Ticket, TicketMessage, TicketStatus } from "@/types";
+import type { Ticket, TicketStatus, Order } from "@/types";
 import {
   formatDateTime,
   getStatusColor,
   getStatusLabel,
   cn,
-  generateId,
 } from "@/lib/utils";
-
-const BUYER_ID = "buyer-1";
-const BUYER_NAME = "Carlos Mendoza";
 
 type StatusFilter = "all" | TicketStatus;
 
@@ -58,10 +52,9 @@ const statusIconMap: Record<TicketStatus, typeof AlertCircle> = {
 };
 
 export default function BuyerTicketsPage() {
-  const [ticketsList, setTicketsList] = useState<Ticket[]>(
-    mockTickets.filter((t) => t.buyerId === BUYER_ID)
-  );
-  const buyerOrders = orders.filter((o) => o.buyerId === BUYER_ID);
+  const [ticketsList, setTicketsList] = useState<Ticket[]>([]);
+  const [buyerOrders, setBuyerOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -76,6 +69,37 @@ export default function BuyerTicketsPage() {
   const [newTicketMessage, setNewTicketMessage] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchTickets = useCallback(async () => {
+    try {
+      const res = await fetch("/api/buyer/tickets");
+      if (!res.ok) throw new Error("Failed to fetch tickets");
+      const data: Ticket[] = await res.json();
+      setTicketsList(data);
+    } catch (err) {
+      console.error("Error fetching tickets:", err);
+    }
+  }, []);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch("/api/buyer/orders");
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      const data: Order[] = await res.json();
+      setBuyerOrders(data);
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      await Promise.all([fetchTickets(), fetchOrders()]);
+      setLoading(false);
+    }
+    loadData();
+  }, [fetchTickets, fetchOrders]);
 
   const filteredTickets = useMemo(() => {
     return ticketsList.filter((ticket) => {
@@ -101,71 +125,56 @@ export default function BuyerTicketsPage() {
     }
   }, [expandedTicket, ticketsList]);
 
-  const handleSendReply = (ticketId: string) => {
+  const handleSendReply = async (ticketId: string) => {
     const text = (replyText[ticketId] || "").trim();
     if (!text) return;
 
-    const newMessage: TicketMessage = {
-      id: `msg-${generateId()}`,
-      senderId: BUYER_ID,
-      senderName: BUYER_NAME,
-      senderRole: "buyer",
-      message: text,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch(`/api/buyer/tickets/${ticketId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
 
-    setTicketsList((prev) =>
-      prev.map((t) =>
-        t.id === ticketId
-          ? {
-              ...t,
-              messages: [...t.messages, newMessage],
-              updatedAt: new Date().toISOString(),
-            }
-          : t
-      )
-    );
+      if (!res.ok) throw new Error("Failed to send reply");
 
-    setReplyText((prev) => ({ ...prev, [ticketId]: "" }));
+      const updatedTicket: Ticket = await res.json();
+      setTicketsList((prev) =>
+        prev.map((t) => (t.id === ticketId ? updatedTicket : t))
+      );
+      setReplyText((prev) => ({ ...prev, [ticketId]: "" }));
+    } catch (err) {
+      console.error("Error sending reply:", err);
+    }
   };
 
-  const handleCreateTicket = () => {
+  const handleCreateTicket = async () => {
     if (!newTicketOrderId || !newTicketSubject.trim() || !newTicketMessage.trim())
       return;
 
-    const selectedOrder = buyerOrders.find((o) => o.id === newTicketOrderId);
-    if (!selectedOrder) return;
-
-    const newTicket: Ticket = {
-      id: `TKT-${generateId().toUpperCase().slice(0, 3)}`,
-      orderId: newTicketOrderId,
-      buyerId: BUYER_ID,
-      buyerName: BUYER_NAME,
-      sellerId: selectedOrder.sellerId,
-      sellerName: selectedOrder.sellerName,
-      subject: newTicketSubject.trim(),
-      status: "open",
-      priority: "medium",
-      messages: [
-        {
-          id: `msg-${generateId()}`,
-          senderId: BUYER_ID,
-          senderName: BUYER_NAME,
-          senderRole: "buyer",
+    try {
+      const res = await fetch("/api/buyer/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: newTicketOrderId,
+          subject: newTicketSubject.trim(),
           message: newTicketMessage.trim(),
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+        }),
+      });
 
-    setTicketsList((prev) => [newTicket, ...prev]);
-    setNewTicketOrderId("");
-    setNewTicketSubject("");
-    setNewTicketMessage("");
-    setShowNewTicketModal(false);
-    setExpandedTicket(newTicket.id);
+      if (!res.ok) throw new Error("Failed to create ticket");
+
+      const newTicket: Ticket = await res.json();
+      setTicketsList((prev) => [newTicket, ...prev]);
+      setNewTicketOrderId("");
+      setNewTicketSubject("");
+      setNewTicketMessage("");
+      setShowNewTicketModal(false);
+      setExpandedTicket(newTicket.id);
+    } catch (err) {
+      console.error("Error creating ticket:", err);
+    }
   };
 
   const handleAttachFile = (ticketId: string) => {
@@ -194,6 +203,16 @@ export default function BuyerTicketsPage() {
       handleSendReply(ticketId);
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="buyer">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="buyer">

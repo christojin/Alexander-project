@@ -1,12 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { orders } from "@/data/mock/orders";
-import { sellers } from "@/data/mock/users";
-import { allUsers } from "@/data/mock/users";
-import { products } from "@/data/mock/products";
-import { tickets } from "@/data/mock/tickets";
+import { Order } from "@/types";
 import {
   formatCurrency,
   formatDate,
@@ -27,96 +23,71 @@ import {
   Calculator,
   ArrowUpRight,
   ArrowDownRight,
+  Loader2,
 } from "lucide-react";
 
+interface TopSeller {
+  id: string;
+  name: string;
+  email: string;
+  storeName: string;
+  commissionRate: number;
+  totalSales: number;
+  revenue: number;
+  commissions: number;
+  orderCount: number;
+}
+
+interface WeeklyRevenue {
+  label: string;
+  revenue: number;
+  commissions: number;
+}
+
+interface DashboardData {
+  totalRevenue: number;
+  totalCommissions: number;
+  totalUsers: number;
+  activeProducts: number;
+  activeSellers: number;
+  openTickets: number;
+  ordersToday: number;
+  newUsersThisWeek: number;
+  averageOrderValue: number;
+  topSellers: TopSeller[];
+  weeklyRevenue: WeeklyRevenue[];
+  recentOrders: Order[];
+}
+
 export default function AdminDashboardPage() {
-  const totalRevenue = useMemo(
-    () => orders.reduce((sum, o) => sum + o.totalAmount, 0),
-    []
-  );
-  const totalCommissions = useMemo(
-    () => orders.reduce((sum, o) => sum + o.commissionAmount, 0),
-    []
-  );
-  const totalUsers = allUsers.length;
-  const activeProducts = products.filter((p) => p.isActive).length;
-  const activeSellers = sellers.filter((s) => s.isActive).length;
-  const openTickets = tickets.filter(
-    (t) => t.status === "open" || t.status === "in_progress"
-  ).length;
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const ordersToday = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return orders.filter((o) => o.createdAt.slice(0, 10) === today).length;
-  }, []);
-
-  const newUsersThisWeek = useMemo(() => {
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return allUsers.filter((u) => new Date(u.createdAt) >= weekAgo).length;
-  }, []);
-
-  const averageOrderValue = useMemo(() => {
-    if (orders.length === 0) return 0;
-    return totalRevenue / orders.length;
-  }, [totalRevenue]);
-
-  const weeklyRevenue = useMemo(() => {
-    const now = new Date();
-    const weeks: { label: string; revenue: number; commissions: number }[] = [];
-    for (let i = 3; i >= 0; i--) {
-      const weekStart = new Date(
-        now.getTime() - (i + 1) * 7 * 24 * 60 * 60 * 1000
-      );
-      const weekEnd = new Date(
-        now.getTime() - i * 7 * 24 * 60 * 60 * 1000
-      );
-      const weekOrders = orders.filter((o) => {
-        const d = new Date(o.createdAt);
-        return d >= weekStart && d < weekEnd;
-      });
-      const revenue = weekOrders.reduce((s, o) => s + o.totalAmount, 0);
-      const commissions = weekOrders.reduce(
-        (s, o) => s + o.commissionAmount,
-        0
-      );
-      weeks.push({
-        label: `Sem ${4 - i}`,
-        revenue,
-        commissions,
-      });
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const res = await fetch("/api/admin/dashboard");
+        if (!res.ok) throw new Error("Failed to fetch dashboard data");
+        const json: DashboardData = await res.json();
+        setData(json);
+      } catch (error) {
+        console.error("Error fetching admin dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
     }
-    return weeks;
+    fetchDashboard();
   }, []);
 
-  const maxWeekRevenue = useMemo(
-    () => Math.max(...weeklyRevenue.map((w) => w.revenue), 1),
-    [weeklyRevenue]
-  );
-
-  const topSellers = useMemo(() => {
-    return sellers
-      .map((s) => {
-        const sellerOrders = orders.filter((o) => o.sellerId === s.id);
-        const revenue = sellerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-        const commissions = sellerOrders.reduce(
-          (sum, o) => sum + o.commissionAmount,
-          0
-        );
-        return { ...s, revenue, commissions, orderCount: sellerOrders.length };
-      })
-      .sort((a, b) => b.revenue - a.revenue);
-  }, []);
-
-  const recentOrders = useMemo(
-    () => [...orders].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
-    []
+  const maxWeekRevenue = Math.max(
+    ...(data?.weeklyRevenue?.map((w) => w.revenue) ?? []),
+    1
   );
 
   const statsCards = [
     {
       label: "Ingresos totales",
-      value: formatCurrency(totalRevenue),
+      value: formatCurrency(data?.totalRevenue ?? 0),
       icon: DollarSign,
       color: "bg-indigo-500",
       trend: "+12.5%",
@@ -124,7 +95,7 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Comisiones ganadas",
-      value: formatCurrency(totalCommissions),
+      value: formatCurrency(data?.totalCommissions ?? 0),
       icon: Percent,
       color: "bg-green-500",
       trend: "+8.2%",
@@ -132,7 +103,7 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Usuarios totales",
-      value: totalUsers.toString(),
+      value: (data?.totalUsers ?? 0).toString(),
       icon: Users,
       color: "bg-blue-500",
       trend: "+3",
@@ -140,7 +111,7 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Productos activos",
-      value: activeProducts.toString(),
+      value: (data?.activeProducts ?? 0).toString(),
       icon: Package,
       color: "bg-purple-500",
       trend: "+2",
@@ -148,7 +119,7 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Vendedores activos",
-      value: activeSellers.toString(),
+      value: (data?.activeSellers ?? 0).toString(),
       icon: Store,
       color: "bg-amber-500",
       trend: "0",
@@ -156,13 +127,23 @@ export default function AdminDashboardPage() {
     },
     {
       label: "Tickets abiertos",
-      value: openTickets.toString(),
+      value: (data?.openTickets ?? 0).toString(),
       icon: TicketCheck,
       color: "bg-red-500",
       trend: "-1",
       trendUp: false,
     },
   ];
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex h-96 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">
@@ -229,7 +210,7 @@ export default function AdminDashboardPage() {
               <TrendingUp className="h-5 w-5 text-indigo-500" />
             </div>
             <div className="flex items-end gap-6 h-64">
-              {weeklyRevenue.map((week, i) => (
+              {(data?.weeklyRevenue ?? []).map((week, i) => (
                 <div key={i} className="flex flex-1 flex-col items-center gap-2">
                   <span className="text-sm font-medium text-slate-700">
                     {formatCurrency(week.revenue)}
@@ -276,7 +257,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-slate-900">
-                    {ordersToday}
+                    {data?.ordersToday ?? 0}
                   </p>
                   <p className="text-sm text-slate-500">Ordenes hoy</p>
                 </div>
@@ -287,7 +268,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-slate-900">
-                    {newUsersThisWeek}
+                    {data?.newUsersThisWeek ?? 0}
                   </p>
                   <p className="text-sm text-slate-500">
                     Nuevos usuarios esta semana
@@ -300,7 +281,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(averageOrderValue)}
+                    {formatCurrency(data?.averageOrderValue ?? 0)}
                   </p>
                   <p className="text-sm text-slate-500">Valor promedio de orden</p>
                 </div>
@@ -338,7 +319,7 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {topSellers.map((seller) => (
+                {(data?.topSellers ?? []).map((seller) => (
                   <tr
                     key={seller.id}
                     className="transition-colors hover:bg-slate-50"
@@ -414,7 +395,7 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentOrders.map((order) => (
+                {(data?.recentOrders ?? []).map((order) => (
                   <tr
                     key={order.id}
                     className="transition-colors hover:bg-slate-50"

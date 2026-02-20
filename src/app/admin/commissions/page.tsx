@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { sellers as mockSellers } from "@/data/mock/users";
-import { orders } from "@/data/mock/orders";
 import { formatCurrency, cn } from "@/lib/utils";
-import type { Seller } from "@/types";
 import {
   Percent,
   DollarSign,
@@ -14,41 +11,53 @@ import {
   TrendingUp,
   Store,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
+
+interface SellerWithStats {
+  id: string;
+  name: string;
+  email: string;
+  storeName: string;
+  commissionRate: number;
+  totalSales: number;
+  isVerified: boolean;
+  calculatedTotalSales: number;
+  calculatedCommissions: number;
+}
 
 const commissionPresets = [5, 10, 12, 15, 20, 25];
 
 export default function AdminCommissionsPage() {
-  const [sellerList, setSellerList] = useState<Seller[]>(mockSellers);
+  const [sellerList, setSellerList] = useState<SellerWithStats[]>([]);
   const [defaultRate, setDefaultRate] = useState(10);
+  const [totalCommissionsCollected, setTotalCommissionsCollected] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [calcAmount, setCalcAmount] = useState(52);
   const [calcRate, setCalcRate] = useState(10);
   const [savedRows, setSavedRows] = useState<Record<string, boolean>>({});
   const [defaultSaved, setDefaultSaved] = useState(false);
 
-  const totalCommissionsCollected = useMemo(
-    () => orders.reduce((sum, o) => sum + o.commissionAmount, 0),
-    []
-  );
+  const fetchCommissions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/commissions");
+      if (!res.ok) throw new Error("Failed to fetch commissions");
+      const data = await res.json();
+      setSellerList(data.sellers);
+      setDefaultRate(data.defaultRate);
+      setTotalCommissionsCollected(data.totalCommissionsCollected);
+      setTotalOrders(data.totalOrders);
+    } catch (error) {
+      console.error("Error fetching commissions:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const sellerStats = useMemo(() => {
-    return sellerList.map((seller) => {
-      const sellerOrders = orders.filter((o) => o.sellerId === seller.id);
-      const totalSales = sellerOrders.reduce(
-        (sum, o) => sum + o.totalAmount,
-        0
-      );
-      const totalCommissions = sellerOrders.reduce(
-        (sum, o) => sum + o.commissionAmount,
-        0
-      );
-      return {
-        ...seller,
-        calculatedTotalSales: totalSales,
-        calculatedCommissions: totalCommissions,
-      };
-    });
-  }, [sellerList]);
+  useEffect(() => {
+    fetchCommissions();
+  }, [fetchCommissions]);
 
   const handleRateChange = (sellerId: string, rate: number) => {
     setSellerList((prev) =>
@@ -59,31 +68,80 @@ export default function AdminCommissionsPage() {
     setSavedRows((prev) => ({ ...prev, [sellerId]: false }));
   };
 
-  const handleSaveRow = (sellerId: string) => {
-    setSavedRows((prev) => ({ ...prev, [sellerId]: true }));
-    setTimeout(() => {
-      setSavedRows((prev) => ({ ...prev, [sellerId]: false }));
-    }, 2000);
+  const handleSaveRow = async (sellerId: string) => {
+    const seller = sellerList.find((s) => s.id === sellerId);
+    if (!seller) return;
+
+    try {
+      const res = await fetch(`/api/admin/commissions/${sellerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commissionRate: seller.commissionRate }),
+      });
+      if (!res.ok) throw new Error("Failed to update commission rate");
+
+      setSavedRows((prev) => ({ ...prev, [sellerId]: true }));
+      setTimeout(() => {
+        setSavedRows((prev) => ({ ...prev, [sellerId]: false }));
+      }, 2000);
+    } catch (error) {
+      console.error("Error saving commission rate:", error);
+    }
   };
 
-  const handleSaveDefault = () => {
-    setDefaultSaved(true);
-    setTimeout(() => setDefaultSaved(false), 2000);
+  const handleSaveDefault = async () => {
+    try {
+      const res = await fetch("/api/admin/commissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultRate }),
+      });
+      if (!res.ok) throw new Error("Failed to update default rate");
+
+      setDefaultSaved(true);
+      setTimeout(() => setDefaultSaved(false), 2000);
+    } catch (error) {
+      console.error("Error saving default rate:", error);
+    }
   };
 
-  const handleBulkSave = () => {
-    const newSaved: Record<string, boolean> = {};
-    sellerList.forEach((s) => {
-      newSaved[s.id] = true;
-    });
-    setSavedRows(newSaved);
-    setTimeout(() => {
-      setSavedRows({});
-    }, 2000);
+  const handleBulkSave = async () => {
+    try {
+      for (const seller of sellerList) {
+        const res = await fetch(`/api/admin/commissions/${seller.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commissionRate: seller.commissionRate }),
+        });
+        if (!res.ok)
+          throw new Error(`Failed to update rate for ${seller.storeName}`);
+      }
+
+      const newSaved: Record<string, boolean> = {};
+      sellerList.forEach((s) => {
+        newSaved[s.id] = true;
+      });
+      setSavedRows(newSaved);
+      setTimeout(() => {
+        setSavedRows({});
+      }, 2000);
+    } catch (error) {
+      console.error("Error in bulk save:", error);
+    }
   };
 
   const calcCommission = calcAmount * (calcRate / 100);
   const calcSellerReceives = calcAmount - calcCommission;
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex h-96 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">
@@ -109,7 +167,7 @@ export default function AdminCommissionsPage() {
                 {formatCurrency(totalCommissionsCollected)}
               </p>
               <p className="mt-2 text-sm text-indigo-200">
-                De {orders.length} ordenes procesadas
+                De {totalOrders} ordenes procesadas
               </p>
             </div>
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20">
@@ -316,7 +374,7 @@ export default function AdminCommissionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {sellerStats.map((seller) => (
+                {sellerList.map((seller) => (
                   <tr
                     key={seller.id}
                     className="transition-colors hover:bg-slate-50"
@@ -411,7 +469,7 @@ export default function AdminCommissionsPage() {
             Vista previa de comisiones
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {sellerStats.map((seller) => {
+            {sellerList.map((seller) => {
               const sampleSale = 52.0;
               const commission = sampleSale * (seller.commissionRate / 100);
               const sellerReceives = sampleSale - commission;

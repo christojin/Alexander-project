@@ -105,7 +105,21 @@ function LoginContent() {
       // Keeping the DOM stable prevents removeChild conflicts from
       // SessionProvider re-renders during page transition.
       leavingRef.current = true;
-      window.location.href = callbackUrl || "/";
+
+      if (callbackUrl) {
+        window.location.href = callbackUrl;
+      } else {
+        // Fetch session to determine user's role for correct dashboard redirect
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+        const role = session?.user?.role;
+        const dest = role === "ADMIN"
+          ? "/admin/dashboard"
+          : role === "SELLER"
+          ? "/seller/dashboard"
+          : "/buyer/dashboard";
+        window.location.href = dest;
+      }
     } catch {
       setError("Error al iniciar sesion. Intenta de nuevo.");
       setIsLoading(false);

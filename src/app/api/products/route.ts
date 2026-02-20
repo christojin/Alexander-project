@@ -26,12 +26,12 @@ function rotateArray<T>(arr: T[], offset: number): T[] {
 /**
  * GET /api/products
  * Public product listing with filters and pagination.
- * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?region=, ?minPrice=, ?maxPrice=, ?page=, ?limit=
+ * Query params: ?category=, ?brand=, ?search=, ?sort=, ?promoted=true, ?offers=true, ?region=, ?minPrice=, ?maxPrice=, ?page=, ?limit=
  *
  * Sorting logic:
- *  - Promoted products always appear FIRST (with 5-min rotation among themselves).
- *  - Organic (non-promoted) products follow, sorted by the user's chosen sort.
- *  - When ?promoted=true, only promoted products are returned (with rotation).
+ *  - ?promoted=true — only promoted products (with 5-min rotation).
+ *  - ?offers=true — only offer/discount products where originalPrice > price (with rotation).
+ *  - Mixed mode — three-tier: Promoted → Offers → Organic.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.trim();
     const sort = searchParams.get("sort"); // "price_asc" | "price_desc" | "newest" | "popular"
     const promoted = searchParams.get("promoted");
+    const offers = searchParams.get("offers");
     const sellerId = searchParams.get("seller");
     const minPrice = searchParams.get("minPrice");
     const maxPrice = searchParams.get("maxPrice");
@@ -105,102 +106,87 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    // ─── Promoted-only mode (homepage "Ofertas del dia") ───
+    // ─── Promoted-only mode (homepage "Promociones") ───
     if (promoted === "true") {
-      const promotedWhere = { ...baseWhere, isPromoted: true };
-
-      // Get ALL promoted products (no pagination) so we can rotate, then slice
       const allPromoted = await prisma.product.findMany({
-        where: promotedWhere,
+        where: { ...baseWhere, isPromoted: true },
         include,
-        orderBy: { createdAt: "asc" }, // stable base order for rotation
+        orderBy: { createdAt: "asc" },
       });
 
       const total = allPromoted.length;
       const offset = getRotationOffset(total);
       const rotated = rotateArray(allPromoted, offset);
-
-      // Apply pagination to the rotated list
       const skip = (page - 1) * limit;
       const pageProducts = rotated.slice(skip, skip + limit);
 
       return NextResponse.json({
         products: pageProducts,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       });
     }
 
-    // ─── Mixed mode: promoted-first + organic ───
-    // Fetch promoted and organic counts
-    const promotedWhere = { ...baseWhere, isPromoted: true };
-    const organicWhere = { ...baseWhere, isPromoted: false };
-
-    const [totalPromoted, totalOrganic] = await Promise.all([
-      prisma.product.count({ where: promotedWhere }),
-      prisma.product.count({ where: organicWhere }),
-    ]);
-
-    const total = totalPromoted + totalOrganic;
-    const skip = (page - 1) * limit;
-
-    // Get all promoted products (for rotation)
-    const allPromoted = totalPromoted > 0
-      ? await prisma.product.findMany({
-          where: promotedWhere,
-          include,
-          orderBy: { createdAt: "asc" },
-        })
-      : [];
-
-    const rotationOffset = getRotationOffset(allPromoted.length);
-    const rotatedPromoted = rotateArray(allPromoted, rotationOffset);
-
-    // Determine how many promoted vs organic products to show on this page
-    let pageProducts;
-
-    if (skip < rotatedPromoted.length) {
-      // This page starts within the promoted section
-      const promotedSlice = rotatedPromoted.slice(skip, skip + limit);
-      const remainingSlots = limit - promotedSlice.length;
-
-      if (remainingSlots > 0) {
-        // Fill remaining slots with organic products
-        const organicProducts = await prisma.product.findMany({
-          where: organicWhere,
-          include,
-          orderBy: organicOrderBy,
-          take: remainingSlots,
-        });
-        pageProducts = [...promotedSlice, ...organicProducts];
-      } else {
-        pageProducts = promotedSlice;
-      }
-    } else {
-      // This page is entirely in the organic section
-      const organicSkip = skip - rotatedPromoted.length;
-      const organicProducts = await prisma.product.findMany({
-        where: organicWhere,
+    // ─── Offers-only mode (homepage "Ofertas del día") ───
+    if (offers === "true") {
+      // Prisma can't do cross-column comparison, so fetch with originalPrice set and filter in-memory
+      const allWithOriginal = await prisma.product.findMany({
+        where: { ...baseWhere, originalPrice: { not: null } },
         include,
-        orderBy: organicOrderBy,
-        skip: organicSkip,
-        take: limit,
+        orderBy: { createdAt: "asc" },
       });
-      pageProducts = organicProducts;
+      const offerProducts = allWithOriginal.filter(
+        (p) => p.originalPrice !== null && p.originalPrice > p.price
+      );
+
+      const total = offerProducts.length;
+      const offset = getRotationOffset(total);
+      const rotated = rotateArray(offerProducts, offset);
+      const skip = (page - 1) * limit;
+      const pageProducts = rotated.slice(skip, skip + limit);
+
+      return NextResponse.json({
+        products: pageProducts,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
     }
+
+    // ─── Mixed mode: three-tier ordering (Promoted → Offers → Organic) ───
+    const allProducts = await prisma.product.findMany({
+      where: baseWhere,
+      include,
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Split into three tiers
+    const promotedProducts = allProducts.filter((p) => p.isPromoted);
+    const offerProducts = allProducts.filter(
+      (p) => !p.isPromoted && p.originalPrice !== null && p.originalPrice > p.price
+    );
+    const organicProducts = allProducts.filter(
+      (p) => !p.isPromoted && !(p.originalPrice !== null && p.originalPrice > p.price)
+    );
+
+    // Apply rotation to promoted and offers
+    const rotatedPromoted = rotateArray(promotedProducts, getRotationOffset(promotedProducts.length));
+    const rotatedOffers = rotateArray(offerProducts, getRotationOffset(offerProducts.length));
+
+    // Sort organic by user's chosen sort
+    organicProducts.sort((a, b) => {
+      if (sort === "price_asc") return a.price - b.price;
+      if (sort === "price_desc") return b.price - a.price;
+      if (sort === "popular") return (b.soldCount ?? 0) - (a.soldCount ?? 0);
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Combine: Promoted → Offers → Organic
+    const combined = [...rotatedPromoted, ...rotatedOffers, ...organicProducts];
+    const total = combined.length;
+    const skip = (page - 1) * limit;
+    const pageProducts = combined.slice(skip, skip + limit);
 
     return NextResponse.json({
       products: pageProducts,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error("[Products GET] Error:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   DollarSign,
   Percent,
@@ -11,18 +11,25 @@ import {
   ArrowDownToLine,
   X,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { StatsCard, Badge } from "@/components/ui";
-import { orders } from "@/data/mock/orders";
+import type { Order } from "@/types";
 import {
   formatCurrency,
   formatDate,
   cn,
 } from "@/lib/utils";
 
-const SELLER_ID = "seller-1";
-const COMMISSION_RATE = 10;
+interface EarningsData {
+  commissionRate: number;
+  totalRevenue: number;
+  totalCommissions: number;
+  netBalance: number;
+  pendingPayment: number;
+  transactions: Order[];
+}
 
 const monthlyEarningsData = [
   { month: "Sep", earnings: 1850 },
@@ -39,33 +46,31 @@ export default function SellerEarningsPage() {
   const [withdrawMethod, setWithdrawMethod] = useState("qr_bolivia");
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
 
-  const sellerOrders = useMemo(
-    () => orders.filter((o) => o.sellerId === SELLER_ID),
-    []
-  );
+  const [data, setData] = useState<EarningsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalRevenue = sellerOrders.reduce(
-    (sum, o) => sum + o.totalAmount,
-    0
-  );
-  const totalCommissions = sellerOrders.reduce(
-    (sum, o) => sum + o.commissionAmount,
-    0
-  );
-  const netBalance = sellerOrders.reduce(
-    (sum, o) => sum + o.sellerEarnings,
-    0
-  );
-  const pendingPayment = sellerOrders
-    .filter((o) => o.status === "pending" || o.status === "under_review")
-    .reduce((sum, o) => sum + o.sellerEarnings, 0);
+  useEffect(() => {
+    async function fetchEarnings() {
+      try {
+        const res = await fetch("/api/seller/earnings");
+        if (!res.ok) throw new Error("Failed to fetch earnings");
+        const json: EarningsData = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error("Error fetching seller earnings:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchEarnings();
+  }, []);
 
-  const transactionHistory = useMemo(() => {
-    return [...sellerOrders].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, [sellerOrders]);
+  const commissionRate = data?.commissionRate ?? 10;
+  const totalRevenue = data?.totalRevenue ?? 0;
+  const totalCommissions = data?.totalCommissions ?? 0;
+  const netBalance = data?.netBalance ?? 0;
+  const pendingPayment = data?.pendingPayment ?? 0;
+  const transactions = data?.transactions ?? [];
 
   const maxMonthlyEarnings = Math.max(
     ...monthlyEarningsData.map((d) => d.earnings)
@@ -82,6 +87,16 @@ export default function SellerEarningsPage() {
       setWithdrawModalOpen(false);
     }, 2500);
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="seller">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-accent-500" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="seller">
@@ -138,7 +153,7 @@ export default function SellerEarningsPage() {
           </div>
           <div>
             <p className="text-sm font-medium text-primary-900">
-              Tu tasa de comision: {COMMISSION_RATE}%
+              Tu tasa de comision: {commissionRate}%
             </p>
             <p className="mt-0.5 text-xs text-primary-700">
               Configurada por el administrador. Se aplica a todas tus ventas
@@ -229,7 +244,7 @@ export default function SellerEarningsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
-                {transactionHistory.map((order, index) => (
+                {transactions.map((order, index) => (
                   <tr
                     key={order.id}
                     className={cn(
@@ -278,7 +293,7 @@ export default function SellerEarningsPage() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <Badge variant="neutral" size="sm">
-                      {COMMISSION_RATE}%
+                      {commissionRate}%
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-red-600">
