@@ -22,6 +22,8 @@ import {
   CalendarDays,
   Loader2,
   AlertCircle,
+  Megaphone,
+  Star,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import {
@@ -132,6 +134,9 @@ export default function SellerProductsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFileName, setImportFileName] = useState("");
+  const [promotionQuota, setPromotionQuota] = useState(0);
+  const [promotionUsed, setPromotionUsed] = useState(0);
+  const [togglingPromotion, setTogglingPromotion] = useState<string | null>(null);
 
   // ---------- Data Fetching ----------
 
@@ -141,6 +146,10 @@ export default function SellerProductsPage() {
       if (!res.ok) throw new Error("Error al cargar productos");
       const data = await res.json();
       setProducts(data.products);
+      if (data.promotion) {
+        setPromotionQuota(data.promotion.quota);
+        setPromotionUsed(data.promotion.used);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     }
@@ -357,6 +366,32 @@ export default function SellerProductsPage() {
     }
   };
 
+  const togglePromotion = async (product: SellerProduct) => {
+    setTogglingPromotion(product.id);
+    try {
+      const res = await fetch(`/api/seller/products/${product.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPromoted: !product.isPromoted }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        alert(errData.error || "Error al cambiar promocion");
+        return;
+      }
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id ? { ...p, isPromoted: !p.isPromoted } : p
+        )
+      );
+      setPromotionUsed((prev) => prev + (product.isPromoted ? -1 : 1));
+    } catch {
+      alert("Error de conexion");
+    } finally {
+      setTogglingPromotion(null);
+    }
+  };
+
   const updateForm = (field: keyof ProductForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -412,6 +447,29 @@ export default function SellerProductsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Promotion Quota Banner */}
+        {promotionQuota > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-3">
+            <Megaphone className="h-5 w-5 shrink-0 text-indigo-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-indigo-900">
+                Productos promocionados: {promotionUsed}/{promotionQuota}
+              </p>
+              <p className="text-xs text-indigo-600">
+                Puedes promocionar hasta {promotionQuota} productos. Los productos promocionados aparecen destacados en la pagina principal.
+              </p>
+            </div>
+            <div className="flex h-8 items-center rounded-full bg-indigo-100 px-3">
+              <span className={cn(
+                "text-sm font-bold",
+                promotionUsed >= promotionQuota ? "text-red-600" : "text-indigo-700"
+              )}>
+                {promotionQuota - promotionUsed} disponibles
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Search and Filters */}
         <SearchBar
@@ -473,6 +531,11 @@ export default function SellerProductsPage() {
                     </Badge>
                   </div>
                   <div className="absolute right-3 top-3 flex gap-2">
+                    {product.isPromoted && (
+                      <Badge variant="warning" size="sm">
+                        <span className="flex items-center gap-1"><Star className="size-3 fill-current" /> Promo</span>
+                      </Badge>
+                    )}
                     <Badge
                       variant={product.isActive ? "success" : "neutral"}
                       size="sm"
@@ -508,8 +571,31 @@ export default function SellerProductsPage() {
                     {product.region && <span>{product.region.name}</span>}
                   </div>
 
+                  {/* Promotion Toggle */}
+                  {promotionQuota > 0 && product.isActive && (
+                    <div className="mt-3 border-t border-surface-100 pt-3">
+                      <button
+                        onClick={() => togglePromotion(product)}
+                        disabled={togglingPromotion === product.id || (!product.isPromoted && promotionUsed >= promotionQuota)}
+                        className={cn(
+                          "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                          product.isPromoted
+                            ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                            : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                        )}
+                      >
+                        {togglingPromotion === product.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Megaphone className="size-3.5" />
+                        )}
+                        {product.isPromoted ? "Quitar promocion" : "Promocionar"}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Actions */}
-                  <div className="mt-4 flex items-center gap-2 border-t border-surface-100 pt-4">
+                  <div className="mt-3 flex items-center gap-2 border-t border-surface-100 pt-3">
                     <Button
                       variant="outline"
                       size="sm"

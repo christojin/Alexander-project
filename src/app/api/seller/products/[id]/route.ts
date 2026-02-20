@@ -137,6 +137,29 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (regionId !== undefined) data.regionId = regionId || null;
     if (isActive !== undefined) data.isActive = isActive;
 
+    // Promotion toggle with quota validation
+    if (body.isPromoted !== undefined) {
+      if (body.isPromoted === true && !existing.isPromoted) {
+        // Check seller's promotion quota
+        const promotedCount = await prisma.product.count({
+          where: { sellerId: seller.id, isPromoted: true, isDeleted: false },
+        });
+        if (promotedCount >= seller.promotionQuota) {
+          return NextResponse.json(
+            {
+              error: seller.promotionQuota === 0
+                ? "No tienes cuota de promocion asignada. Contacta al administrador."
+                : `Has alcanzado tu limite de ${seller.promotionQuota} productos promocionados`,
+            },
+            { status: 400 }
+          );
+        }
+        data.isPromoted = true;
+      } else if (body.isPromoted === false) {
+        data.isPromoted = false;
+      }
+    }
+
     const product = await prisma.product.update({
       where: { id },
       data,

@@ -36,6 +36,7 @@ interface SellerProfile {
   status: string;
   marketType: string;
   isVerified: boolean;
+  promotionQuota: number;
 }
 
 interface ApiUser {
@@ -65,6 +66,7 @@ interface EditingUser {
   storeName?: string;
   commissionRate?: number;
   isVerified?: boolean;
+  promotionQuota?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -218,6 +220,7 @@ export default function AdminUsersPage() {
           storeName: editingUser.storeName,
           commissionRate: editingUser.commissionRate,
           isVerified: editingUser.isVerified,
+          promotionQuota: editingUser.promotionQuota,
         };
       }
       const res = await fetch(`/api/admin/users/${editingUser.id}`, {
@@ -274,6 +277,7 @@ export default function AdminUsersPage() {
       storeName: sellerInfo?.storeName || "",
       commissionRate: sellerInfo?.commissionRate || 10,
       isVerified: sellerInfo?.isVerified || false,
+      promotionQuota: sellerInfo?.promotionQuota ?? 0,
     });
   };
 
@@ -470,6 +474,11 @@ export default function AdminUsersPage() {
                                 <p className="text-xs text-slate-500">
                                   {sellerInfo.commissionRate}% comision -- {sellerInfo.totalSales} ventas
                                 </p>
+                                {sellerInfo.promotionQuota > 0 && (
+                                  <p className="text-xs text-indigo-600">
+                                    Cuota promo: {sellerInfo.promotionQuota}
+                                  </p>
+                                )}
                               </div>
                             ) : (
                               <span className="text-slate-400">--</span>
@@ -670,27 +679,53 @@ export default function AdminUsersPage() {
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Tasa de comision (%)
-                    </label>
-                    <input
-                      type="number"
-                      value={editingUser.commissionRate}
-                      onChange={(e) =>
-                        setEditingUser((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                commissionRate: Number(e.target.value),
-                              }
-                            : null
-                        )
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      min={0}
-                      max={100}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Tasa de comision (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={editingUser.commissionRate}
+                        onChange={(e) =>
+                          setEditingUser((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  commissionRate: Number(e.target.value),
+                                }
+                              : null
+                          )
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        min={0}
+                        max={100}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Cuota de promocion
+                      </label>
+                      <input
+                        type="number"
+                        value={editingUser.promotionQuota ?? 0}
+                        onChange={(e) =>
+                          setEditingUser((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  promotionQuota: Math.max(0, Number(e.target.value)),
+                                }
+                              : null
+                          )
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        min={0}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">
+                        Max. productos que puede promocionar
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <input

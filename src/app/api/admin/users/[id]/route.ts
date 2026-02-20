@@ -80,6 +80,7 @@ export async function PATCH(
     if (body.seller.storeName !== undefined) sellerData.storeName = body.seller.storeName.trim();
     if (body.seller.commissionRate !== undefined) sellerData.commissionRate = parseFloat(body.seller.commissionRate);
     if (body.seller.isVerified !== undefined) sellerData.isVerified = body.seller.isVerified;
+    if (body.seller.promotionQuota !== undefined) sellerData.promotionQuota = Math.max(0, parseInt(body.seller.promotionQuota));
 
     if (Object.keys(sellerData).length > 0) {
       await prisma.sellerProfile.update({

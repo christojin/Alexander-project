@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
             status: true,
             marketType: true,
             isVerified: true,
+            promotionQuota: true,
           },
         },
       },

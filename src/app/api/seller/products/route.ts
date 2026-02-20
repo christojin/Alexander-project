@@ -50,23 +50,34 @@ export async function GET(req: NextRequest) {
       where.isActive = false;
     }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: { select: { id: true, name: true, slug: true } },
-        brand: { select: { id: true, name: true, slug: true } },
-        region: { select: { id: true, name: true, code: true } },
-        _count: {
-          select: {
-            giftCardCodes: { where: { status: "AVAILABLE" } },
-            streamingAccounts: { where: { status: "AVAILABLE" } },
+    const [products, promotedCount] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+          brand: { select: { id: true, name: true, slug: true } },
+          region: { select: { id: true, name: true, code: true } },
+          _count: {
+            select: {
+              giftCardCodes: { where: { status: "AVAILABLE" } },
+              streamingAccounts: { where: { status: "AVAILABLE" } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.product.count({
+        where: { sellerId: seller.id, isPromoted: true, isDeleted: false },
+      }),
+    ]);
 
-    return NextResponse.json({ products });
+    return NextResponse.json({
+      products,
+      promotion: {
+        quota: seller.promotionQuota,
+        used: promotedCount,
+      },
+    });
   } catch (error) {
     console.error("[Seller Products GET] Error:", error);
     return NextResponse.json(
