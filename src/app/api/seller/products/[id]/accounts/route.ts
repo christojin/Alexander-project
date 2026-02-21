@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encrypt, decrypt } from "@/lib/encryption";
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+/** Verify seller owns this product and return both seller + product */
+async function verifySellerProduct(productId: string) {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "SELLER") {
+    return { error: "No autorizado", status: 401 } as const;
+  }
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId: session.user.id },
+  });
+  if (!seller) {
+    return { error: "Perfil de vendedor no encontrado", status: 404 } as const;
+  }
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, sellerId: seller.id, isDeleted: false },
+  });
+  if (!product) {
+    return { error: "Producto no encontrado", status: 404 } as const;
+  }
+
+  return { seller, product } as const;
+}
 
 /**
  * GET /api/seller/products/[id]/accounts
@@ -10,31 +35,10 @@ type RouteParams = { params: Promise<{ id: string }> };
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "SELLER") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!seller) {
-      return NextResponse.json(
-        { error: "Perfil de vendedor no encontrado" },
-        { status: 404 }
-      );
-    }
-
     const { id } = await params;
-
-    const product = await prisma.product.findFirst({
-      where: { id, sellerId: seller.id, isDeleted: false },
-    });
-    if (!product) {
-      return NextResponse.json(
-        { error: "Producto no encontrado" },
-        { status: 404 }
-      );
+    const result = await verifySellerProduct(id);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     const accounts = await prisma.streamingAccount.findMany({
@@ -47,10 +51,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         expiresAt: true,
         soldAt: true,
         createdAt: true,
-        // Never expose encrypted credentials in listing
-        emailEncrypted: false,
+        updatedAt: true,
+        emailEncrypted: true,
         passwordEncrypted: false,
-        usernameEncrypted: false,
+        usernameEncrypted: true,
         profiles: {
           select: {
             id: true,
@@ -63,6 +67,15 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       orderBy: { createdAt: "desc" },
     });
 
+    // Decrypt email/username for seller display (never expose password)
+    const accountsDecrypted = accounts.map((a) => ({
+      ...a,
+      email: a.emailEncrypted ? decrypt(a.emailEncrypted) : null,
+      username: a.usernameEncrypted ? decrypt(a.usernameEncrypted) : null,
+      emailEncrypted: undefined,
+      usernameEncrypted: undefined,
+    }));
+
     const summary = {
       total: accounts.length,
       available: accounts.filter((a) => a.status === "AVAILABLE").length,
@@ -71,7 +84,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       expired: accounts.filter((a) => a.status === "EXPIRED").length,
     };
 
-    return NextResponse.json({ accounts, summary });
+    return NextResponse.json({ accounts: accountsDecrypted, summary });
   } catch (error) {
     console.error("[Seller Accounts GET] Error:", error);
     return NextResponse.json(
@@ -85,36 +98,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  * POST /api/seller/products/[id]/accounts
  * Add a streaming account.
  * Body: { email, username?, password, expiresAt?, maxProfiles? }
- * Note: AES-256 encryption deferred to Week 4 — using ENC: prefix as placeholder.
  */
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "SELLER") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!seller) {
-      return NextResponse.json(
-        { error: "Perfil de vendedor no encontrado" },
-        { status: 404 }
-      );
-    }
-
     const { id } = await params;
-
-    const product = await prisma.product.findFirst({
-      where: { id, sellerId: seller.id, isDeleted: false },
-    });
-    if (!product) {
-      return NextResponse.json(
-        { error: "Producto no encontrado" },
-        { status: 404 }
-      );
+    const result = await verifySellerProduct(id);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
+
+    const { product } = result;
+
     if (product.productType !== "STREAMING") {
       return NextResponse.json(
         { error: "Este producto no es de tipo Streaming" },
@@ -132,10 +126,10 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Placeholder encryption (Week 4: replace with AES-256)
-    const emailEncrypted = `ENC:${email}`;
-    const passwordEncrypted = `ENC:${password}`;
-    const usernameEncrypted = username ? `ENC:${username}` : null;
+    // AES-256-GCM encryption
+    const emailEncrypted = encrypt(email);
+    const passwordEncrypted = encrypt(password);
+    const usernameEncrypted = username ? encrypt(username) : null;
 
     const profileMode = product.streamingMode === "PROFILE";
     const numProfiles = profileMode ? (maxProfiles || product.profileCount || 1) : 1;
@@ -188,6 +182,120 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   } catch (error) {
     console.error("[Seller Accounts POST] Error:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/seller/products/[id]/accounts
+ * Edit or suspend/resume a streaming account.
+ * Body: { accountId, email?, username?, password?, expiresAt?, action?: "suspend" | "resume" }
+ */
+export async function PATCH(req: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params;
+    const result = await verifySellerProduct(id);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    const body = await req.json();
+    const { accountId, email, username, password, expiresAt, action } = body;
+
+    if (!accountId) {
+      return NextResponse.json(
+        { error: "accountId es requerido" },
+        { status: 400 }
+      );
+    }
+
+    // Verify account belongs to this product
+    const account = await prisma.streamingAccount.findFirst({
+      where: { id: accountId, productId: id },
+    });
+    if (!account) {
+      return NextResponse.json(
+        { error: "Cuenta no encontrada" },
+        { status: 404 }
+      );
+    }
+
+    // Handle suspend/resume action
+    if (action === "suspend" || action === "resume") {
+      if (action === "suspend" && account.status !== "AVAILABLE") {
+        return NextResponse.json(
+          { error: "Solo se pueden suspender cuentas disponibles" },
+          { status: 400 }
+        );
+      }
+      if (action === "resume" && account.status !== "SUSPENDED") {
+        return NextResponse.json(
+          { error: "Solo se pueden reactivar cuentas suspendidas" },
+          { status: 400 }
+        );
+      }
+
+      const newStatus = action === "suspend" ? "SUSPENDED" : "AVAILABLE";
+
+      await prisma.$transaction(async (tx) => {
+        await tx.streamingAccount.update({
+          where: { id: accountId },
+          data: { status: newStatus },
+        });
+
+        // Adjust stock: suspend removes from stock, resume adds back
+        const profileMode = result.product.streamingMode === "PROFILE";
+        const stockDelta = action === "suspend"
+          ? -(profileMode ? account.maxProfiles - account.soldProfiles : 1)
+          : (profileMode ? account.maxProfiles - account.soldProfiles : 1);
+
+        if (stockDelta !== 0) {
+          await tx.product.update({
+            where: { id },
+            data: { stockCount: { increment: stockDelta } },
+          });
+        }
+      });
+
+      return NextResponse.json({
+        message: action === "suspend"
+          ? "Cuenta suspendida exitosamente"
+          : "Cuenta reactivada exitosamente",
+      });
+    }
+
+    // Handle credential edit
+    if (account.status === "SOLD") {
+      return NextResponse.json(
+        { error: "No se puede editar una cuenta ya vendida" },
+        { status: 400 }
+      );
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (email) updateData.emailEncrypted = encrypt(email);
+    if (username !== undefined) updateData.usernameEncrypted = username ? encrypt(username) : null;
+    if (password) updateData.passwordEncrypted = encrypt(password);
+    if (expiresAt !== undefined) updateData.expiresAt = expiresAt ? new Date(expiresAt) : null;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: "No se proporcionaron campos para actualizar" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.streamingAccount.update({
+      where: { id: accountId },
+      data: updateData,
+    });
+
+    return NextResponse.json({ message: "Cuenta actualizada exitosamente" });
+  } catch (error) {
+    console.error("[Seller Accounts PATCH] Error:", error);
     return NextResponse.json(
       { error: "Error interno del servidor" },
       { status: 500 }

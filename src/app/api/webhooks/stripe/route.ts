@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { fulfillOrder } from "@/lib/order-fulfillment";
 
 /**
  * POST /api/webhooks/stripe
@@ -60,7 +61,15 @@ export async function POST(req: NextRequest) {
     const externalPaymentId = session.payment_intent as string;
 
     try {
-      await completeOrders(orderIds, buyerId, externalPaymentId);
+      for (const orderId of orderIds) {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { items: true },
+        });
+        if (!order || order.paymentStatus === "COMPLETED") continue;
+
+        await fulfillOrder(order, buyerId, externalPaymentId);
+      }
     } catch (error) {
       console.error("[Stripe Webhook] Error completing orders:", error);
       return NextResponse.json(
@@ -71,94 +80,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true });
-}
-
-async function completeOrders(
-  orderIds: string[],
-  buyerId: string,
-  externalPaymentId: string
-) {
-  for (const orderId of orderIds) {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    });
-    if (!order || order.paymentStatus === "COMPLETED") continue;
-
-    // Assign digital codes for instant-delivery items
-    for (const item of order.items) {
-      if (item.deliveryType === "INSTANT") {
-        if (item.productType === "GIFT_CARD" || item.productType === "TOP_UP") {
-          const codes = await prisma.giftCardCode.findMany({
-            where: { productId: item.productId, status: "AVAILABLE" },
-            take: item.quantity,
-          });
-          for (const code of codes) {
-            await prisma.giftCardCode.update({
-              where: { id: code.id },
-              data: {
-                status: "SOLD",
-                soldAt: new Date(),
-                buyerId,
-                orderId: item.id,
-              },
-            });
-          }
-        } else if (item.productType === "STREAMING") {
-          const accounts = await prisma.streamingAccount.findMany({
-            where: { productId: item.productId, status: "AVAILABLE" },
-            take: item.quantity,
-          });
-          for (const account of accounts) {
-            await prisma.streamingAccount.update({
-              where: { id: account.id },
-              data: { status: "SOLD", soldAt: new Date() },
-            });
-          }
-        }
-
-        await prisma.orderItem.update({
-          where: { id: item.id },
-          data: { isDelivered: true, deliveredAt: new Date() },
-        });
-      }
-    }
-
-    // Update product stock counts
-    for (const item of order.items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: { soldCount: { increment: item.quantity } },
-      });
-    }
-
-    // Update seller earnings
-    await prisma.sellerProfile.update({
-      where: { id: order.sellerId },
-      data: {
-        totalSales: { increment: 1 },
-        totalEarnings: { increment: order.sellerEarnings },
-        availableBalance: { increment: order.sellerEarnings },
-      },
-    });
-
-    // Mark order completed
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: order.requiresManualReview ? "UNDER_REVIEW" : "COMPLETED",
-        paymentStatus: "COMPLETED",
-        completedAt: order.requiresManualReview ? undefined : new Date(),
-      },
-    });
-
-    await prisma.payment.update({
-      where: { orderId },
-      data: {
-        status: "COMPLETED",
-        externalPaymentId,
-        completedAt: new Date(),
-      },
-    });
-  }
 }

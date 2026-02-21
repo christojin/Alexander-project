@@ -14,6 +14,9 @@ import {
   ImageIcon,
   Loader2,
   Star,
+  ShieldAlert,
+  Ban,
+  AlertCircle,
 } from "lucide-react";
 
 interface AdminProduct {
@@ -32,6 +35,7 @@ interface AdminProduct {
   brand: { id: string; name: string } | null;
   region: { id: string; name: string } | null;
   seller: { id: string; storeName: string; user: { name: string } | null } | null;
+  _count?: { orderItems: number };
 }
 
 interface SelectOption {
@@ -53,6 +57,7 @@ export default function AdminProductsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchProducts = () => {
     setLoading(true);
@@ -141,11 +146,20 @@ export default function AdminProductsPage() {
 
   const handleDeleteProduct = async (productId: string) => {
     try {
-      await fetch(`/api/admin/products/${productId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/products/${productId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const errData = await res.json();
+        setError(errData.error || "Error al eliminar producto");
+        setDeleteConfirm(null);
+        return;
+      }
       setDeleteConfirm(null);
+      setError(null);
       fetchProducts();
-    } catch (error) {
-      console.error("Error deleting product:", error);
+    } catch (err) {
+      console.error("Error deleting product:", err);
+      setError("Error de conexion al eliminar producto");
+      setDeleteConfirm(null);
     }
   };
 
@@ -165,6 +179,17 @@ export default function AdminProductsPage() {
             Administra todos los productos de la plataforma
           </p>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -392,20 +417,34 @@ export default function AdminProductsPage() {
                         </button>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setEditingProduct({ ...product })}
-                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(product.id)}
-                            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        {(() => {
+                          const hasSales = product.soldCount > 0 || (product._count?.orderItems ?? 0) > 0;
+                          return (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setEditingProduct({ ...product })}
+                                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-indigo-600"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              {hasSales ? (
+                                <span
+                                  title="Producto con ventas: solo se puede desactivar"
+                                  className="rounded-lg p-2 text-slate-300 cursor-not-allowed"
+                                >
+                                  <Ban className="h-4 w-4" />
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirm(product.id)}
+                                  className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -605,8 +644,7 @@ export default function AdminProductsPage() {
               Eliminar producto
             </h3>
             <p className="mt-2 text-sm text-slate-500">
-              Esta seguro de que desea eliminar este producto? El producto sera
-              desactivado y marcado como eliminado.
+              Esta seguro de que desea eliminar este producto? El producto sera marcado como eliminado y no aparecera en la plataforma. Este registro se mantendra en el sistema.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button

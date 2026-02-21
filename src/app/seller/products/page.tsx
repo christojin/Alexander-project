@@ -8,7 +8,6 @@ import {
   ToggleLeft,
   ToggleRight,
   Package,
-  Search,
   ImageIcon,
   FileSpreadsheet,
   Upload,
@@ -25,6 +24,15 @@ import {
   Megaphone,
   Star,
   Tag,
+  ShieldAlert,
+  Ban,
+  Eye,
+  Hash,
+  CircleDot,
+  Users,
+  PauseCircle,
+  PlayCircle,
+  Monitor,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import {
@@ -74,6 +82,7 @@ interface SellerProduct {
   _count?: {
     giftCardCodes: number;
     streamingAccounts: number;
+    orderItems: number;
   };
 }
 
@@ -86,12 +95,55 @@ interface ProductForm {
   brandId: string;
   regionId: string;
   deliveryType: "INSTANT" | "MANUAL";
-  productType: "GIFT_CARD" | "STREAMING";
+  productType: "GIFT_CARD" | "STREAMING" | "MANUAL";
   digitalCodes: string;
+  singleCode: string;
+  codeExpiration: string;
   streamingEmail: string;
   streamingUsername: string;
   streamingPassword: string;
   streamingExpiration: string;
+  streamingMode: "COMPLETE_ACCOUNT" | "PROFILE";
+  profileCount: string;
+  duration: string;
+  manualStock: string;
+}
+
+interface CodeSummary {
+  total: number;
+  available: number;
+  sold: number;
+  reserved: number;
+  expired: number;
+}
+
+interface CodeItem {
+  id: string;
+  status: string;
+  expiresAt: string | null;
+  soldAt: string | null;
+  createdAt: string;
+}
+
+interface AccountSummary {
+  total: number;
+  available: number;
+  sold: number;
+  suspended: number;
+  expired: number;
+}
+
+interface AccountItem {
+  id: string;
+  status: string;
+  email: string | null;
+  username: string | null;
+  maxProfiles: number;
+  soldProfiles: number;
+  expiresAt: string | null;
+  soldAt: string | null;
+  createdAt: string;
+  profiles: { id: string; profileNumber: number; buyerId: string | null; assignedAt: string | null }[];
 }
 
 const emptyForm: ProductForm = {
@@ -105,10 +157,16 @@ const emptyForm: ProductForm = {
   deliveryType: "INSTANT",
   productType: "GIFT_CARD",
   digitalCodes: "",
+  singleCode: "",
+  codeExpiration: "",
   streamingEmail: "",
   streamingUsername: "",
   streamingPassword: "",
   streamingExpiration: "",
+  streamingMode: "COMPLETE_ACCOUNT",
+  profileCount: "",
+  duration: "",
+  manualStock: "",
 };
 
 const deliveryOptions = [
@@ -133,14 +191,34 @@ export default function SellerProductsPage() {
   const [editingProduct, setEditingProduct] = useState<SellerProduct | null>(null);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importFileName, setImportFileName] = useState("");
   const [promotionQuota, setPromotionQuota] = useState(0);
   const [promotionUsed, setPromotionUsed] = useState(0);
   const [offersQuota, setOffersQuota] = useState(0);
   const [offersUsed, setOffersUsed] = useState(0);
   const [togglingPromotion, setTogglingPromotion] = useState<string | null>(null);
   const [togglingOffer, setTogglingOffer] = useState<string | null>(null);
+
+  // Code management modal state
+  const [codesModalProduct, setCodesModalProduct] = useState<SellerProduct | null>(null);
+  const [codesList, setCodesList] = useState<CodeItem[]>([]);
+  const [codesSummary, setCodesSummary] = useState<CodeSummary | null>(null);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [codesStatusFilter, setCodesStatusFilter] = useState("");
+
+  // CSV upload state
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvResult, setCsvResult] = useState<string | null>(null);
+
+  // Streaming account management modal state
+  const [accountsModalProduct, setAccountsModalProduct] = useState<SellerProduct | null>(null);
+  const [accountsList, setAccountsList] = useState<AccountItem[]>([]);
+  const [accountsSummary, setAccountsSummary] = useState<AccountSummary | null>(null);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountsStatusFilter, setAccountsStatusFilter] = useState("");
+  const [editingAccount, setEditingAccount] = useState<AccountItem | null>(null);
+  const [accountForm, setAccountForm] = useState({ email: "", username: "", password: "", expiresAt: "" });
+  const [accountSaving, setAccountSaving] = useState(false);
 
   // ---------- Data Fetching ----------
 
@@ -216,12 +294,18 @@ export default function SellerProductsPage() {
       brandId: product.brandId ?? "",
       regionId: product.regionId ?? "",
       deliveryType: product.deliveryType,
-      productType: product.productType === "STREAMING" ? "STREAMING" : "GIFT_CARD",
+      productType: product.productType === "STREAMING" ? "STREAMING" : product.productType === "MANUAL" ? "MANUAL" : "GIFT_CARD",
       digitalCodes: "",
       streamingEmail: "",
       streamingUsername: "",
       streamingPassword: "",
       streamingExpiration: "",
+      singleCode: "",
+      codeExpiration: "",
+      streamingMode: product.streamingMode === "PROFILE" ? "PROFILE" : "COMPLETE_ACCOUNT",
+      profileCount: product.profileCount?.toString() ?? "",
+      duration: product.duration?.toString() ?? "",
+      manualStock: product.stockCount?.toString() ?? "",
     });
     setError(null);
     setModalOpen(true);
@@ -237,7 +321,7 @@ export default function SellerProductsPage() {
     setError(null);
 
     try {
-      const productData = {
+      const productData: Record<string, unknown> = {
         name: form.name,
         description: form.description,
         price: parseFloat(form.price),
@@ -248,6 +332,19 @@ export default function SellerProductsPage() {
         brandId: form.brandId || null,
         regionId: form.regionId || null,
       };
+
+      // Add streaming-specific fields
+      if (form.productType === "STREAMING") {
+        productData.streamingMode = form.streamingMode;
+        productData.profileCount = form.profileCount ? parseInt(form.profileCount) : null;
+      }
+
+      // Add manual-specific fields
+      if (form.productType === "MANUAL") {
+        productData.deliveryType = "MANUAL";
+        productData.duration = form.duration ? parseInt(form.duration) : null;
+        productData.stockCount = form.manualStock ? parseInt(form.manualStock) : 0;
+      }
 
       let savedProduct: SellerProduct;
 
@@ -280,19 +377,33 @@ export default function SellerProductsPage() {
       }
 
       // Upload codes if gift card type and codes provided
-      if (form.productType === "GIFT_CARD" && form.digitalCodes.trim()) {
-        const codes = form.digitalCodes
-          .split("\n")
-          .map((c) => c.trim())
-          .filter(Boolean);
+      if (form.productType === "GIFT_CARD") {
+        const allCodes: string[] = [];
 
-        if (codes.length > 0) {
+        // Individual code
+        if (form.singleCode.trim()) {
+          allCodes.push(form.singleCode.trim());
+        }
+
+        // Bulk codes
+        if (form.digitalCodes.trim()) {
+          const bulkCodes = form.digitalCodes
+            .split("\n")
+            .map((c) => c.trim())
+            .filter(Boolean);
+          allCodes.push(...bulkCodes);
+        }
+
+        if (allCodes.length > 0) {
           const codesRes = await fetch(
             `/api/seller/products/${savedProduct.id}/codes`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ codes }),
+              body: JSON.stringify({
+                codes: allCodes,
+                expiresAt: form.codeExpiration || undefined,
+              }),
             }
           );
           if (!codesRes.ok) {
@@ -427,6 +538,194 @@ export default function SellerProductsPage() {
     }
   };
 
+  // ---------- Code Management ----------
+
+  const fetchCodes = async (productId: string) => {
+    setCodesLoading(true);
+    try {
+      const res = await fetch(`/api/seller/products/${productId}/codes`);
+      if (!res.ok) throw new Error("Error al cargar codigos");
+      const data = await res.json();
+      setCodesList(data.codes ?? []);
+      setCodesSummary(data.summary ?? null);
+    } catch (err) {
+      console.error("Fetch codes error:", err);
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  const openCodesModal = (product: SellerProduct) => {
+    setCodesModalProduct(product);
+    setCodesStatusFilter("");
+    fetchCodes(product.id);
+  };
+
+  const handleAddSingleCode = async () => {
+    if (!codesModalProduct || !form.singleCode.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/seller/products/${codesModalProduct.id}/codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codes: [form.singleCode.trim()],
+          expiresAt: form.codeExpiration || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al agregar codigo");
+      }
+      setForm((prev) => ({ ...prev, singleCode: "", codeExpiration: "" }));
+      await fetchCodes(codesModalProduct.id);
+      await fetchProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCsvUpload = async () => {
+    if (!csvFile || !codesModalProduct) return;
+    setCsvUploading(true);
+    setCsvResult(null);
+    try {
+      const text = await csvFile.text();
+      const codes: string[] = [];
+
+      // Parse CSV: support comma-separated, semicolon-separated, or one per line
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        // Try comma or semicolon separated
+        const parts = line.split(/[,;]/).map((p) => p.trim().replace(/^["']|["']$/g, ""));
+        for (const part of parts) {
+          if (part.length > 0) codes.push(part);
+        }
+      }
+
+      if (codes.length === 0) {
+        setCsvResult("No se encontraron codigos validos en el archivo");
+        return;
+      }
+
+      const res = await fetch(`/api/seller/products/${codesModalProduct.id}/codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codes }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al importar");
+      }
+      const data = await res.json();
+      setCsvResult(`${data.added} codigos importados exitosamente`);
+      setCsvFile(null);
+      await fetchCodes(codesModalProduct.id);
+      await fetchProducts();
+    } catch (err) {
+      setCsvResult(err instanceof Error ? err.message : "Error al procesar archivo");
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const filteredCodes = useMemo(() => {
+    if (!codesStatusFilter) return codesList;
+    return codesList.filter((c) => c.status === codesStatusFilter);
+  }, [codesList, codesStatusFilter]);
+
+  // ---------- Streaming Account Management ----------
+
+  const fetchAccounts = async (productId: string) => {
+    setAccountsLoading(true);
+    try {
+      const res = await fetch(`/api/seller/products/${productId}/accounts`);
+      if (!res.ok) throw new Error("Error al cargar cuentas");
+      const data = await res.json();
+      setAccountsList(data.accounts ?? []);
+      setAccountsSummary(data.summary ?? null);
+    } catch (err) {
+      console.error("Fetch accounts error:", err);
+    } finally {
+      setAccountsLoading(false);
+    }
+  };
+
+  const openAccountsModal = (product: SellerProduct) => {
+    setAccountsModalProduct(product);
+    setAccountsStatusFilter("");
+    setEditingAccount(null);
+    fetchAccounts(product.id);
+  };
+
+  const handleAccountEdit = async () => {
+    if (!accountsModalProduct || !editingAccount) return;
+    setAccountSaving(true);
+    try {
+      const res = await fetch(`/api/seller/products/${accountsModalProduct.id}/accounts`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: editingAccount.id,
+          email: accountForm.email || undefined,
+          username: accountForm.username || undefined,
+          password: accountForm.password || undefined,
+          expiresAt: accountForm.expiresAt || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al actualizar");
+      }
+      setEditingAccount(null);
+      setAccountForm({ email: "", username: "", password: "", expiresAt: "" });
+      await fetchAccounts(accountsModalProduct.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setAccountSaving(false);
+    }
+  };
+
+  const handleAccountAction = async (accountId: string, action: "suspend" | "resume") => {
+    if (!accountsModalProduct) return;
+    setAccountSaving(true);
+    try {
+      const res = await fetch(`/api/seller/products/${accountsModalProduct.id}/accounts`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId, action }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al cambiar estado");
+      }
+      await fetchAccounts(accountsModalProduct.id);
+      await fetchProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setAccountSaving(false);
+    }
+  };
+
+  const startEditAccount = (account: AccountItem) => {
+    setEditingAccount(account);
+    setAccountForm({
+      email: account.email ?? "",
+      username: account.username ?? "",
+      password: "",
+      expiresAt: account.expiresAt ? account.expiresAt.split("T")[0] : "",
+    });
+  };
+
+  const filteredAccounts = useMemo(() => {
+    if (!accountsStatusFilter) return accountsList;
+    return accountsList.filter((a) => a.status === accountsStatusFilter);
+  }, [accountsList, accountsStatusFilter]);
+
   const updateForm = (field: keyof ProductForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -474,9 +773,6 @@ export default function SellerProductsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" iconLeft={<FileSpreadsheet />} onClick={() => setImportModalOpen(true)}>
-              Importar CSV
-            </Button>
             <Button iconLeft={<Plus />} onClick={openCreateModal}>
               Agregar producto
             </Button>
@@ -529,6 +825,17 @@ export default function SellerProductsPage() {
           </div>
         )}
 
+        {/* Error Banner */}
+        {error && !modalOpen && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+              <XIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Search and Filters */}
         <SearchBar
           value={searchQuery}
@@ -578,11 +885,13 @@ export default function SellerProductsPage() {
                   </div>
                   <div className="absolute left-3 top-3">
                     <Badge
-                      variant={product.productType === "STREAMING" ? "warning" : "info"}
+                      variant={product.productType === "STREAMING" ? "warning" : product.productType === "MANUAL" ? "neutral" : "info"}
                       size="sm"
                     >
                       {product.productType === "STREAMING" ? (
                         <span className="flex items-center gap-1"><Tv className="size-3" /> Streaming</span>
+                      ) : product.productType === "MANUAL" ? (
+                        <span className="flex items-center gap-1"><Package className="size-3" /> Manual</span>
                       ) : (
                         <span className="flex items-center gap-1"><Gift className="size-3" /> Gift Card</span>
                       )}
@@ -634,6 +943,28 @@ export default function SellerProductsPage() {
                     {product.region && <span>{product.region.name}</span>}
                   </div>
 
+                  {/* Gift Card: Code management button */}
+                  {product.productType === "GIFT_CARD" && (
+                    <button
+                      onClick={() => openCodesModal(product)}
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-100"
+                    >
+                      <Eye className="size-3.5" />
+                      Gestionar codigos ({product._count?.giftCardCodes ?? 0} disponibles)
+                    </button>
+                  )}
+
+                  {/* Streaming: Account management button */}
+                  {product.productType === "STREAMING" && (
+                    <button
+                      onClick={() => openAccountsModal(product)}
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+                    >
+                      <Tv className="size-3.5" />
+                      Gestionar cuentas ({product._count?.streamingAccounts ?? 0} disponibles)
+                    </button>
+                  )}
+
                   {/* Promotion & Offer Toggles */}
                   {(promotionQuota > 0 || offersQuota > 0) && product.isActive && (
                     <div className="mt-3 flex flex-col gap-2 border-t border-surface-100 pt-3">
@@ -681,35 +1012,60 @@ export default function SellerProductsPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="mt-3 flex items-center gap-2 border-t border-surface-100 pt-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      iconLeft={<Pencil />}
-                      onClick={() => openEditModal(product)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleActive(product)}
-                      iconLeft={
-                        product.isActive ? <ToggleRight /> : <ToggleLeft />
-                      }
-                    >
-                      {product.isActive ? "Desactivar" : "Activar"}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto text-red-600 hover:bg-red-50 hover:text-red-700"
-                      iconLeft={<Trash2 />}
-                      onClick={() => setDeleteConfirm(product.id)}
-                    >
-                      Eliminar
-                    </Button>
-                  </div>
+                  {(() => {
+                    const hasSales = product.soldCount > 0 || (product._count?.orderItems ?? 0) > 0;
+                    return (
+                      <div className="mt-3 flex flex-col gap-2 border-t border-surface-100 pt-3">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            iconLeft={<Pencil />}
+                            onClick={() => openEditModal(product)}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleActive(product)}
+                            iconLeft={
+                              product.isActive ? <ToggleRight /> : <ToggleLeft />
+                            }
+                          >
+                            {product.isActive ? "Desactivar" : "Activar"}
+                          </Button>
+                          {hasSales ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-auto text-surface-400 cursor-not-allowed"
+                              iconLeft={<Ban className="size-3.5" />}
+                              disabled
+                            >
+                              Eliminar
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="ml-auto text-red-600 hover:bg-red-50 hover:text-red-700"
+                              iconLeft={<Trash2 />}
+                              onClick={() => setDeleteConfirm(product.id)}
+                            >
+                              Eliminar
+                            </Button>
+                          )}
+                        </div>
+                        {hasSales && (
+                          <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+                            <ShieldAlert className="size-3.5 shrink-0" />
+                            <span>Producto con ventas: solo se puede desactivar</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -796,7 +1152,7 @@ export default function SellerProductsPage() {
               <label className="mb-2 block text-sm font-medium text-surface-700">
                 Tipo de producto
               </label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => updateForm("productType", "GIFT_CARD")}
@@ -809,8 +1165,8 @@ export default function SellerProductsPage() {
                 >
                   <Gift className="size-5 shrink-0" />
                   <div>
-                    <div className="text-sm font-semibold">Gift Card / Codigo</div>
-                    <div className="text-xs opacity-70">Codigos digitales unicos</div>
+                    <div className="text-sm font-semibold">Gift Card</div>
+                    <div className="text-xs opacity-70">Codigos digitales</div>
                   </div>
                 </button>
                 <button
@@ -826,64 +1182,194 @@ export default function SellerProductsPage() {
                   <Tv className="size-5 shrink-0" />
                   <div>
                     <div className="text-sm font-semibold">Streaming</div>
-                    <div className="text-xs opacity-70">Credenciales de cuenta</div>
+                    <div className="text-xs opacity-70">Credenciales</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateForm("productType", "MANUAL")}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
+                    form.productType === "MANUAL"
+                      ? "border-primary-500 bg-primary-50 text-primary-700"
+                      : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+                  )}
+                >
+                  <Package className="size-5 shrink-0" />
+                  <div>
+                    <div className="text-sm font-semibold">Manual</div>
+                    <div className="text-xs opacity-70">Entrega manual</div>
                   </div>
                 </button>
               </div>
             </div>
 
             {/* Type-specific stock entry */}
-            {form.productType === "GIFT_CARD" ? (
-              <div>
-                <Textarea
-                  label="Codigos digitales"
-                  placeholder="Pega los codigos aqui, uno por linea..."
-                  helperText="Un codigo por linea. Se sumaran al stock actual del producto."
-                  value={form.digitalCodes}
-                  onChange={(e) => updateForm("digitalCodes", e.target.value)}
-                  className="min-h-[120px] font-mono text-xs"
-                />
-              </div>
-            ) : (
+            {form.productType === "MANUAL" ? (
               <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
-                  <Lock className="size-4" />
-                  Credenciales de streaming
+                  <Package className="size-4" />
+                  Producto de entrega manual
                 </h4>
                 <p className="text-xs text-surface-500">
-                  Ingresa las credenciales de la cuenta que se entregara al comprador.
+                  Este producto se entrega manualmente por el vendedor. Se creara un chat automatico con el comprador al momento de la compra.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Input
-                    label="Correo electronico"
-                    placeholder="cuenta@email.com"
-                    value={form.streamingEmail}
-                    onChange={(e) => updateForm("streamingEmail", e.target.value)}
-                    iconLeft={<Mail className="size-4" />}
+                    label="Cantidad en stock"
+                    type="number"
+                    placeholder="Ej: 10"
+                    value={form.manualStock}
+                    onChange={(e) => updateForm("manualStock", e.target.value)}
+                    iconLeft={<Package className="size-4" />}
                   />
                   <Input
-                    label="Usuario"
-                    placeholder="nombre_usuario"
-                    value={form.streamingUsername}
-                    onChange={(e) => updateForm("streamingUsername", e.target.value)}
-                    iconLeft={<User className="size-4" />}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Contrasena"
-                    placeholder="********"
-                    value={form.streamingPassword}
-                    onChange={(e) => updateForm("streamingPassword", e.target.value)}
-                    iconLeft={<Lock className="size-4" />}
-                  />
-                  <Input
-                    label="Fecha de expiracion"
-                    type="date"
-                    value={form.streamingExpiration}
-                    onChange={(e) => updateForm("streamingExpiration", e.target.value)}
+                    label="Duracion de entrega (dias)"
+                    type="number"
+                    placeholder="Ej: 1"
+                    value={form.duration}
+                    onChange={(e) => updateForm("duration", e.target.value)}
                     iconLeft={<CalendarDays className="size-4" />}
                   />
+                </div>
+              </div>
+            ) : form.productType === "GIFT_CARD" ? (
+              <div className="space-y-4">
+                <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                    <Hash className="size-4" />
+                    Codigos digitales
+                  </h4>
+                  <p className="text-xs text-surface-500">
+                    Agrega codigos uno a uno o en lote. Se sumaran al stock actual del producto.
+                  </p>
+
+                  {/* Individual code entry */}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Input
+                        label="Agregar codigo individual"
+                        placeholder="Ej: ABCD-1234-EFGH-5678"
+                        value={form.singleCode}
+                        onChange={(e) => updateForm("singleCode", e.target.value)}
+                        iconLeft={<Gift className="size-4" />}
+                      />
+                    </div>
+                    <div className="w-[140px]">
+                      <Input
+                        label="Expiracion"
+                        type="date"
+                        value={form.codeExpiration}
+                        onChange={(e) => updateForm("codeExpiration", e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Bulk entry */}
+                  <Textarea
+                    label="O pega multiples codigos (uno por linea)"
+                    placeholder={"CODIGO-001\nCODIGO-002\nCODIGO-003"}
+                    value={form.digitalCodes}
+                    onChange={(e) => updateForm("digitalCodes", e.target.value)}
+                    className="min-h-[100px] font-mono text-xs"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Streaming Mode Selector */}
+                <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                    <Tv className="size-4" />
+                    Modo de compartir
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => updateForm("streamingMode", "COMPLETE_ACCOUNT")}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
+                        form.streamingMode === "COMPLETE_ACCOUNT"
+                          ? "border-amber-500 bg-amber-50 text-amber-700"
+                          : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+                      )}
+                    >
+                      <Monitor className="size-5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold">Cuenta completa</div>
+                        <div className="text-xs opacity-70">Se vende la cuenta entera</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateForm("streamingMode", "PROFILE")}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
+                        form.streamingMode === "PROFILE"
+                          ? "border-amber-500 bg-amber-50 text-amber-700"
+                          : "border-surface-200 bg-white text-surface-600 hover:border-surface-300"
+                      )}
+                    >
+                      <Users className="size-5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold">Por perfil</div>
+                        <div className="text-xs opacity-70">Se venden perfiles individuales</div>
+                      </div>
+                    </button>
+                  </div>
+                  {form.streamingMode === "PROFILE" && (
+                    <Input
+                      label="Cantidad de perfiles por cuenta"
+                      type="number"
+                      placeholder="Ej: 5"
+                      value={form.profileCount}
+                      onChange={(e) => updateForm("profileCount", e.target.value)}
+                      iconLeft={<Users className="size-4" />}
+                    />
+                  )}
+                </div>
+
+                {/* Streaming Credentials */}
+                <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                    <Lock className="size-4" />
+                    Credenciales de streaming
+                  </h4>
+                  <p className="text-xs text-surface-500">
+                    Ingresa las credenciales de la cuenta que se entregara al comprador. Puedes agregar mas cuentas despues.
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Input
+                      label="Correo electronico"
+                      placeholder="cuenta@email.com"
+                      value={form.streamingEmail}
+                      onChange={(e) => updateForm("streamingEmail", e.target.value)}
+                      iconLeft={<Mail className="size-4" />}
+                    />
+                    <Input
+                      label="Usuario"
+                      placeholder="nombre_usuario"
+                      value={form.streamingUsername}
+                      onChange={(e) => updateForm("streamingUsername", e.target.value)}
+                      iconLeft={<User className="size-4" />}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Input
+                      label="Contrasena"
+                      placeholder="********"
+                      value={form.streamingPassword}
+                      onChange={(e) => updateForm("streamingPassword", e.target.value)}
+                      iconLeft={<Lock className="size-4" />}
+                    />
+                    <Input
+                      label="Fecha de expiracion"
+                      type="date"
+                      value={form.streamingExpiration}
+                      onChange={(e) => updateForm("streamingExpiration", e.target.value)}
+                      iconLeft={<CalendarDays className="size-4" />}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -924,8 +1410,7 @@ export default function SellerProductsPage() {
         >
           <div className="space-y-4">
             <p className="text-sm text-surface-600">
-              Estas seguro de que deseas eliminar este producto? Esta accion no
-              se puede deshacer.
+              Estas seguro de que deseas eliminar este producto? El producto sera marcado como eliminado y no aparecera en tu catalogo. Este registro se mantendra en el sistema.
             </p>
             <div className="flex items-center justify-end gap-3">
               <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
@@ -941,78 +1426,444 @@ export default function SellerProductsPage() {
           </div>
         </Modal>
 
-        {/* CSV/Excel Import Modal */}
+        {/* Code Management Modal */}
         <Modal
-          open={importModalOpen}
+          open={codesModalProduct !== null}
           onClose={() => {
-            setImportModalOpen(false);
-            setImportFileName("");
+            setCodesModalProduct(null);
+            setCodesList([]);
+            setCodesSummary(null);
+            setCsvFile(null);
+            setCsvResult(null);
+            setForm((prev) => ({ ...prev, singleCode: "", codeExpiration: "" }));
           }}
-          title="Importar productos"
-          size="md"
+          title={`Codigos: ${codesModalProduct?.name ?? ""}`}
+          size="lg"
         >
-          <div className="space-y-5">
-            <p className="text-sm text-surface-600">
-              Sube un archivo CSV o Excel con los datos de tus productos. El archivo debe contener las columnas: nombre, precio, categoria, region, plataforma, tipo de entrega.
-            </p>
-
-            {/* Drop zone */}
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-surface-300 bg-surface-50 px-6 py-10 transition-colors hover:border-primary-400 hover:bg-primary-50/30">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-100 text-surface-400">
-                <Upload className="h-6 w-6" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-surface-700">
-                  Arrastra tu archivo aqui o haz clic para seleccionar
-                </p>
-                <p className="mt-1 text-xs text-surface-400">
-                  Formatos aceptados: .csv, .xlsx
-                </p>
-              </div>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                onChange={() => setImportFileName("productos_catalogo.csv")}
-              />
-            </label>
-
-            {/* Selected file */}
-            {importFileName && (
-              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                <span className="text-sm font-medium text-green-800">{importFileName}</span>
-                <button
-                  onClick={() => setImportFileName("")}
-                  className="ml-auto text-green-500 hover:text-green-700 transition-colors"
-                >
-                  <XIcon className="h-3.5 w-3.5" />
-                </button>
+          <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Summary Stats */}
+            {codesSummary && (
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { label: "Total", value: codesSummary.total, color: "text-surface-900 bg-surface-50" },
+                  { label: "Disponible", value: codesSummary.available, color: "text-green-700 bg-green-50" },
+                  { label: "Vendido", value: codesSummary.sold, color: "text-blue-700 bg-blue-50" },
+                  { label: "Reservado", value: codesSummary.reserved, color: "text-amber-700 bg-amber-50" },
+                  { label: "Expirado", value: codesSummary.expired, color: "text-red-700 bg-red-50" },
+                ].map((stat) => (
+                  <div key={stat.label} className={cn("rounded-lg p-2.5 text-center", stat.color)}>
+                    <div className="text-lg font-bold">{stat.value}</div>
+                    <div className="text-[10px] font-medium uppercase tracking-wide opacity-70">{stat.label}</div>
+                  </div>
+                ))}
               </div>
             )}
 
-            <a href="#" className="inline-flex text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors">
-              Descargar plantilla de ejemplo
-            </a>
+            {/* Add Individual Code */}
+            <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                <Plus className="size-4" />
+                Agregar codigo
+              </h4>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    label="Codigo"
+                    placeholder="Ej: ABCD-1234-EFGH"
+                    value={form.singleCode}
+                    onChange={(e) => updateForm("singleCode", e.target.value)}
+                    iconLeft={<Gift className="size-4" />}
+                  />
+                </div>
+                <div className="w-[140px]">
+                  <Input
+                    label="Expiracion"
+                    type="date"
+                    value={form.codeExpiration}
+                    onChange={(e) => updateForm("codeExpiration", e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={handleAddSingleCode}
+                  disabled={saving || !form.singleCode.trim()}
+                  className="shrink-0"
+                >
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : "Agregar"}
+                </Button>
+              </div>
+            </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setImportModalOpen(false);
-                  setImportFileName("");
-                }}
-              >
-                Cancelar
+            {/* CSV/Excel Upload */}
+            <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                <FileSpreadsheet className="size-4" />
+                Importar desde archivo
+              </h4>
+              <p className="text-xs text-surface-500">
+                Sube un archivo CSV o de texto con codigos (uno por linea, o separados por comas).
+              </p>
+              <div className="flex items-center gap-3">
+                <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-surface-300 bg-white px-4 py-2.5 text-sm transition-colors hover:border-primary-400 hover:bg-primary-50/30">
+                  <Upload className="size-4 shrink-0 text-surface-400" />
+                  <span className="text-surface-600">
+                    {csvFile ? csvFile.name : "Seleccionar archivo (.csv, .txt, .xlsx)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,.txt,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      setCsvFile(e.target.files?.[0] ?? null);
+                      setCsvResult(null);
+                    }}
+                  />
+                </label>
+                {csvFile && (
+                  <button onClick={() => { setCsvFile(null); setCsvResult(null); }} className="text-surface-400 hover:text-surface-600">
+                    <XIcon className="size-4" />
+                  </button>
+                )}
+                <Button
+                  onClick={handleCsvUpload}
+                  disabled={!csvFile || csvUploading}
+                  variant="outline"
+                >
+                  {csvUploading ? <Loader2 className="size-4 animate-spin" /> : "Importar"}
+                </Button>
+              </div>
+              {csvResult && (
+                <div className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
+                  csvResult.includes("exitosamente") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                )}>
+                  {csvResult.includes("exitosamente") ? <CheckCircle2 className="size-3.5 shrink-0" /> : <AlertCircle className="size-3.5 shrink-0" />}
+                  {csvResult}
+                </div>
+              )}
+            </div>
+
+            {/* Codes List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-surface-700">
+                  Listado de codigos
+                </h4>
+                <select
+                  value={codesStatusFilter}
+                  onChange={(e) => setCodesStatusFilter(e.target.value)}
+                  className="rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-xs text-surface-700 focus:border-primary-500 focus:outline-none"
+                >
+                  <option value="">Todos</option>
+                  <option value="AVAILABLE">Disponible</option>
+                  <option value="SOLD">Vendido</option>
+                  <option value="RESERVED">Reservado</option>
+                  <option value="EXPIRED">Expirado</option>
+                </select>
+              </div>
+
+              {codesLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-primary-500" />
+                </div>
+              ) : filteredCodes.length === 0 ? (
+                <div className="rounded-lg border border-surface-200 bg-surface-50 py-8 text-center text-sm text-surface-400">
+                  {codesList.length === 0 ? "No hay codigos registrados" : "No hay codigos con este estado"}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-surface-200 bg-white">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-surface-100 bg-surface-50/50">
+                        <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">#</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">Estado</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">Expiracion</th>
+                        <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">Fecha creacion</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-100">
+                      {filteredCodes.slice(0, 100).map((code, idx) => (
+                        <tr key={code.id} className="text-xs">
+                          <td className="px-4 py-2 text-surface-500">{idx + 1}</td>
+                          <td className="px-4 py-2">
+                            <span className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                              code.status === "AVAILABLE" && "bg-green-100 text-green-700",
+                              code.status === "SOLD" && "bg-blue-100 text-blue-700",
+                              code.status === "RESERVED" && "bg-amber-100 text-amber-700",
+                              code.status === "EXPIRED" && "bg-red-100 text-red-700",
+                            )}>
+                              <CircleDot className="size-2.5" />
+                              {code.status === "AVAILABLE" ? "Disponible" :
+                               code.status === "SOLD" ? "Vendido" :
+                               code.status === "RESERVED" ? "Reservado" : "Expirado"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-surface-500">
+                            {code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : "—"}
+                          </td>
+                          <td className="px-4 py-2 text-surface-500">
+                            {new Date(code.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredCodes.length > 100 && (
+                    <div className="border-t border-surface-100 px-4 py-2 text-center text-xs text-surface-400">
+                      Mostrando 100 de {filteredCodes.length} codigos
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => {
+                setCodesModalProduct(null);
+                setCodesList([]);
+                setCodesSummary(null);
+                setCsvFile(null);
+                setCsvResult(null);
+              }}>
+                Cerrar
               </Button>
-              <Button
-                disabled={!importFileName}
-                onClick={() => {
-                  setImportModalOpen(false);
-                  setImportFileName("");
-                }}
-              >
-                Importar productos
+            </div>
+          </div>
+        </Modal>
+
+        {/* Streaming Account Management Modal */}
+        <Modal
+          open={accountsModalProduct !== null}
+          onClose={() => {
+            setAccountsModalProduct(null);
+            setAccountsList([]);
+            setAccountsSummary(null);
+            setEditingAccount(null);
+            setAccountForm({ email: "", username: "", password: "", expiresAt: "" });
+          }}
+          title={`Cuentas: ${accountsModalProduct?.name ?? ""}`}
+          size="lg"
+        >
+          <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Summary Stats */}
+            {accountsSummary && (
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { label: "Total", value: accountsSummary.total, color: "text-surface-900 bg-surface-50" },
+                  { label: "Disponible", value: accountsSummary.available, color: "text-green-700 bg-green-50" },
+                  { label: "Vendido", value: accountsSummary.sold, color: "text-blue-700 bg-blue-50" },
+                  { label: "Suspendido", value: accountsSummary.suspended, color: "text-orange-700 bg-orange-50" },
+                  { label: "Expirado", value: accountsSummary.expired, color: "text-red-700 bg-red-50" },
+                ].map((stat) => (
+                  <div key={stat.label} className={cn("rounded-lg p-2.5 text-center", stat.color)}>
+                    <div className="text-lg font-bold">{stat.value}</div>
+                    <div className="text-[10px] font-medium uppercase tracking-wide opacity-70">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Streaming Mode Info */}
+            {accountsModalProduct && (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-xs text-amber-700">
+                {accountsModalProduct.streamingMode === "PROFILE" ? (
+                  <>
+                    <Users className="size-4 shrink-0" />
+                    <span>Modo: <strong>Por perfil</strong> — cada cuenta tiene {accountsModalProduct.profileCount ?? "N"} perfiles vendibles</span>
+                  </>
+                ) : (
+                  <>
+                    <Monitor className="size-4 shrink-0" />
+                    <span>Modo: <strong>Cuenta completa</strong> — cada cuenta se vende como unidad</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Edit Account Form */}
+            {editingAccount && (
+              <div className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50/50 p-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                    <Pencil className="size-4" />
+                    Editando cuenta
+                  </h4>
+                  <button
+                    onClick={() => { setEditingAccount(null); setAccountForm({ email: "", username: "", password: "", expiresAt: "" }); }}
+                    className="text-surface-400 hover:text-surface-600"
+                  >
+                    <XIcon className="size-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Input
+                    label="Correo electronico"
+                    placeholder="cuenta@email.com"
+                    value={accountForm.email}
+                    onChange={(e) => setAccountForm((prev) => ({ ...prev, email: e.target.value }))}
+                    iconLeft={<Mail className="size-4" />}
+                  />
+                  <Input
+                    label="Usuario"
+                    placeholder="nombre_usuario"
+                    value={accountForm.username}
+                    onChange={(e) => setAccountForm((prev) => ({ ...prev, username: e.target.value }))}
+                    iconLeft={<User className="size-4" />}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Input
+                    label="Nueva contrasena"
+                    placeholder="Dejar vacio para no cambiar"
+                    value={accountForm.password}
+                    onChange={(e) => setAccountForm((prev) => ({ ...prev, password: e.target.value }))}
+                    iconLeft={<Lock className="size-4" />}
+                  />
+                  <Input
+                    label="Fecha de expiracion"
+                    type="date"
+                    value={accountForm.expiresAt}
+                    onChange={(e) => setAccountForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
+                    iconLeft={<CalendarDays className="size-4" />}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => { setEditingAccount(null); setAccountForm({ email: "", username: "", password: "", expiresAt: "" }); }}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleAccountEdit} disabled={accountSaving}>
+                    {accountSaving ? <Loader2 className="size-4 animate-spin" /> : "Guardar cambios"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Accounts List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-surface-700">
+                  Listado de cuentas
+                </h4>
+                <select
+                  value={accountsStatusFilter}
+                  onChange={(e) => setAccountsStatusFilter(e.target.value)}
+                  className="rounded-lg border border-surface-200 bg-white px-3 py-1.5 text-xs text-surface-700 focus:border-primary-500 focus:outline-none"
+                >
+                  <option value="">Todos</option>
+                  <option value="AVAILABLE">Disponible</option>
+                  <option value="SOLD">Vendido</option>
+                  <option value="SUSPENDED">Suspendido</option>
+                  <option value="EXPIRED">Expirado</option>
+                </select>
+              </div>
+
+              {accountsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-primary-500" />
+                </div>
+              ) : filteredAccounts.length === 0 ? (
+                <div className="rounded-lg border border-surface-200 bg-surface-50 py-8 text-center text-sm text-surface-400">
+                  {accountsList.length === 0 ? "No hay cuentas registradas" : "No hay cuentas con este estado"}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredAccounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className={cn(
+                        "rounded-lg border bg-white p-3 transition-all",
+                        account.status === "SUSPENDED" ? "border-orange-200 bg-orange-50/30" : "border-surface-200"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-100 text-surface-500">
+                            <Mail className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-surface-900">
+                              {account.email ?? "—"}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-surface-500">
+                              {account.username && <span>@{account.username}</span>}
+                              {account.expiresAt && (
+                                <span className="flex items-center gap-1">
+                                  <CalendarDays className="size-3" />
+                                  {new Date(account.expiresAt).toLocaleDateString()}
+                                </span>
+                              )}
+                              {accountsModalProduct?.streamingMode === "PROFILE" && (
+                                <span className="flex items-center gap-1">
+                                  <Users className="size-3" />
+                                  {account.soldProfiles}/{account.maxProfiles} perfiles
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                            account.status === "AVAILABLE" && "bg-green-100 text-green-700",
+                            account.status === "SOLD" && "bg-blue-100 text-blue-700",
+                            account.status === "SUSPENDED" && "bg-orange-100 text-orange-700",
+                            account.status === "EXPIRED" && "bg-red-100 text-red-700",
+                          )}>
+                            <CircleDot className="size-2.5" />
+                            {account.status === "AVAILABLE" ? "Disponible" :
+                             account.status === "SOLD" ? "Vendido" :
+                             account.status === "SUSPENDED" ? "Suspendido" : "Expirado"}
+                          </span>
+
+                          {/* Edit button (not for sold accounts) */}
+                          {account.status !== "SOLD" && (
+                            <button
+                              onClick={() => startEditAccount(account)}
+                              className="rounded-lg p-1.5 text-surface-400 transition-colors hover:bg-surface-100 hover:text-surface-700"
+                              title="Editar"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                          )}
+
+                          {/* Suspend / Resume */}
+                          {account.status === "AVAILABLE" && (
+                            <button
+                              onClick={() => handleAccountAction(account.id, "suspend")}
+                              disabled={accountSaving}
+                              className="rounded-lg p-1.5 text-orange-500 transition-colors hover:bg-orange-50 hover:text-orange-700"
+                              title="Suspender"
+                            >
+                              <PauseCircle className="size-3.5" />
+                            </button>
+                          )}
+                          {account.status === "SUSPENDED" && (
+                            <button
+                              onClick={() => handleAccountAction(account.id, "resume")}
+                              disabled={accountSaving}
+                              className="rounded-lg p-1.5 text-green-500 transition-colors hover:bg-green-50 hover:text-green-700"
+                              title="Reactivar"
+                            >
+                              <PlayCircle className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => {
+                setAccountsModalProduct(null);
+                setAccountsList([]);
+                setAccountsSummary(null);
+                setEditingAccount(null);
+              }}>
+                Cerrar
               </Button>
             </div>
           </div>

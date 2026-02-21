@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
             user: { select: { name: true } },
           },
         },
+        _count: { select: { orderItems: true } },
       },
       orderBy: { createdAt: "desc" },
     });

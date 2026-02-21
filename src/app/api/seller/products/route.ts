@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
             select: {
               giftCardCodes: { where: { status: "AVAILABLE" } },
               streamingAccounts: { where: { status: "AVAILABLE" } },
+              orderItems: true,
             },
           },
         },
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
       categoryId,
       brandId,
       regionId,
+      stockCount,
     } = body;
 
     // Validation
@@ -197,7 +199,7 @@ export async function POST(req: NextRequest) {
         brandId: brandId || null,
         regionId: regionId || null,
         sellerId: seller.id,
-        stockCount: 0,
+        stockCount: (productType === "MANUAL" && typeof stockCount === "number" && stockCount > 0) ? stockCount : 0,
         isActive: true,
       },
       include: {

@@ -109,6 +109,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       brandId,
       regionId,
       isActive,
+      stockCount,
     } = body;
 
     // Build update data — only include provided fields
@@ -175,6 +176,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (brandId !== undefined) data.brandId = brandId || null;
     if (regionId !== undefined) data.regionId = regionId || null;
     if (isActive !== undefined) data.isActive = isActive;
+    // Allow direct stock count update for MANUAL products only
+    if (stockCount !== undefined && existing.productType === "MANUAL") {
+      data.stockCount = typeof stockCount === "number" && stockCount >= 0 ? stockCount : existing.stockCount;
+    }
 
     // Promotion toggle with quota validation
     if (body.isPromoted !== undefined) {
@@ -222,6 +227,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 /**
  * DELETE /api/seller/products/[id]
  * Soft-delete a product owned by the authenticated seller.
+ * Products with sales history (soldCount > 0 or linked order items) CANNOT be deleted — only deactivated.
  */
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
@@ -242,9 +248,12 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
-    // Verify ownership
+    // Verify ownership and get sales data
     const existing = await prisma.product.findFirst({
       where: { id, sellerId: seller.id, isDeleted: false },
+      include: {
+        _count: { select: { orderItems: true } },
+      },
     });
     if (!existing) {
       return NextResponse.json(
@@ -253,15 +262,47 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await prisma.product.update({
-      where: { id },
-      data: {
-        isDeleted: true,
-        isActive: false,
-        deletedAt: new Date(),
-        deletedBy: session.user.id,
-      },
-    });
+    // Block deletion if product has sales history
+    const hasSales = existing.soldCount > 0 || existing._count.orderItems > 0;
+    if (hasSales) {
+      return NextResponse.json(
+        {
+          error: "No se puede eliminar un producto con historial de ventas. Solo puedes desactivarlo.",
+          code: "HAS_SALES_HISTORY",
+        },
+        { status: 403 }
+      );
+    }
+
+    // No sales history — soft-delete with audit log
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id },
+        data: {
+          isDeleted: true,
+          isActive: false,
+          deletedAt: new Date(),
+          deletedBy: session.user.id,
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: "product_deleted",
+          entityType: "product",
+          entityId: id,
+          details: {
+            productName: existing.name,
+            productType: existing.productType,
+            price: existing.price,
+            stockCount: existing.stockCount,
+            soldCount: existing.soldCount,
+            sellerId: seller.id,
+            reason: "seller_deleted_no_sales",
+          },
+        },
+      }),
+    ]);
 
     return NextResponse.json({ message: "Producto eliminado exitosamente" });
   } catch (error) {

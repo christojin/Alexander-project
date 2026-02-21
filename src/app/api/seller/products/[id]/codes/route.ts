@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encrypt } from "@/lib/encryption";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -143,8 +144,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Placeholder encryption (Week 4: replace with AES-256)
-    const encryptedCodes = uniqueCodes.map((code) => `ENC:${code}`);
+    // AES-256-GCM encryption
+    const encryptedCodes = uniqueCodes.map((code) => encrypt(code));
 
     // Bulk create codes and update stock in a transaction
     const result = await prisma.$transaction(async (tx) => {
