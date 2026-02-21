@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import {
@@ -50,10 +50,56 @@ export default function AdminSettingsPage() {
   );
 
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  // Load settings from API on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.siteName != null) setSiteName(data.siteName);
+        if (data.footerHtml !== undefined && data.footerHtml !== null) setFooterHtml(data.footerHtml);
+        setEnableQrBolivia(data.enableQrBolivia ?? true);
+        setEnableStripe(data.enableStripe ?? true);
+        setEnableBinancePay(data.enableBinancePay ?? false);
+        setEnableCrypto(data.enableCrypto ?? false);
+        setDeliveryDelay(data.deliveryDelayMinutes ?? 30);
+        setHighValueThreshold(data.highValueThreshold ?? 500);
+      } catch {
+        // Keep defaults on error
+      }
+    }
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteName,
+          footerHtml,
+          enableQrBolivia,
+          enableStripe,
+          enableBinancePay,
+          enableCrypto,
+          deliveryDelayMinutes: deliveryDelay,
+          highValueThreshold,
+        }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch {
+      // Show error state could be added here
+    } finally {
+      setSaving(false);
+    }
   };
 
   const paymentMethods = [
@@ -114,8 +160,9 @@ export default function AdminSettingsPage() {
           </div>
           <button
             onClick={handleSave}
+            disabled={saving}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all",
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all disabled:opacity-50",
               saved
                 ? "bg-green-500"
                 : "bg-indigo-600 hover:bg-indigo-700"
@@ -126,7 +173,7 @@ export default function AdminSettingsPage() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {saved ? "Guardado" : "Guardar configuracion"}
+            {saving ? "Guardando..." : saved ? "Guardado" : "Guardar configuracion"}
           </button>
         </div>
 
@@ -512,8 +559,9 @@ export default function AdminSettingsPage() {
         <div className="flex justify-end pb-8">
           <button
             onClick={handleSave}
+            disabled={saving}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-medium text-white shadow-sm transition-all",
+              "inline-flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-medium text-white shadow-sm transition-all disabled:opacity-50",
               saved
                 ? "bg-green-500"
                 : "bg-indigo-600 hover:bg-indigo-700"
@@ -524,7 +572,7 @@ export default function AdminSettingsPage() {
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {saved ? "Configuracion guardada" : "Guardar toda la configuracion"}
+            {saving ? "Guardando..." : saved ? "Configuracion guardada" : "Guardar toda la configuracion"}
           </button>
         </div>
       </div>

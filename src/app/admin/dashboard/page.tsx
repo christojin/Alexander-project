@@ -24,6 +24,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
+  Zap,
 } from "lucide-react";
 
 interface TopSeller {
@@ -47,6 +48,7 @@ interface WeeklyRevenue {
 interface DashboardData {
   totalRevenue: number;
   totalCommissions: number;
+  apiNetProfit: number;
   totalUsers: number;
   activeProducts: number;
   activeSellers: number;
@@ -99,6 +101,14 @@ export default function AdminDashboardPage() {
       icon: Percent,
       color: "bg-green-500",
       trend: "+8.2%",
+      trendUp: true,
+    },
+    {
+      label: "Ganancia neta API",
+      value: formatCurrency(data?.apiNetProfit ?? 0),
+      icon: Zap,
+      color: "bg-teal-500",
+      trend: "",
       trendUp: true,
     },
     {
@@ -159,7 +169,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {statsCards.map((card) => (
             <div
               key={card.label}

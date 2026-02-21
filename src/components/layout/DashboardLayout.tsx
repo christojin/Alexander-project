@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -17,6 +17,7 @@ import {
   Home,
   ChevronDown,
   Loader2,
+  Megaphone,
 } from "lucide-react";
 import Sidebar from "./Sidebar";
 
@@ -33,31 +34,19 @@ const roleGreeting: Record<Role, string> = {
   admin: "Administrador",
 };
 
-interface Notification {
-  id: string;
-  icon: "order" | "alert" | "message" | "success";
-  title: string;
-  description: string;
-  time: string;
-  read: boolean;
-}
-
-const mockNotifications: Record<Role, Notification[]> = {
-  buyer: [
-    { id: "n1", icon: "success", title: "Pedido entregado", description: "Tu codigo de Netflix ha sido enviado a tu correo.", time: "Hace 5 min", read: false },
-    { id: "n2", icon: "order", title: "Nuevo pedido confirmado", description: "Pedido ORD-001 procesado exitosamente.", time: "Hace 1 hora", read: false },
-    { id: "n3", icon: "message", title: "Respuesta en ticket", description: "El vendedor respondio a tu consulta.", time: "Hace 3 horas", read: true },
-  ],
-  seller: [
-    { id: "n1", icon: "order", title: "Nueva venta", description: "Has vendido 1x Spotify Premium 3 meses.", time: "Hace 10 min", read: false },
-    { id: "n2", icon: "message", title: "Nuevo ticket de soporte", description: "Un comprador abrio un reclamo.", time: "Hace 2 horas", read: false },
-    { id: "n3", icon: "success", title: "Retiro procesado", description: "Tu retiro de $150.00 fue aprobado.", time: "Hace 1 dia", read: true },
-  ],
-  admin: [
-    { id: "n1", icon: "alert", title: "Compra de alto valor", description: "Pedido de $750 requiere revision manual.", time: "Hace 15 min", read: false },
-    { id: "n2", icon: "order", title: "Nuevo vendedor registrado", description: "GameStore Bolivia solicita aprobacion.", time: "Hace 1 hora", read: false },
-    { id: "n3", icon: "message", title: "Ticket escalado", description: "Ticket TK-003 marcado como urgente.", time: "Hace 4 horas", read: true },
-  ],
+// Map API notification types to icon categories
+const typeToIcon: Record<string, "order" | "alert" | "message" | "success"> = {
+  NEW_ORDER: "order",
+  ORDER_COMPLETED: "success",
+  STOCK_DEPLETED: "alert",
+  NEW_TICKET: "message",
+  TICKET_REPLY: "message",
+  NEW_CHAT_MESSAGE: "message",
+  WITHDRAWAL_APPROVED: "success",
+  WITHDRAWAL_REJECTED: "alert",
+  KYC_APPROVED: "success",
+  KYC_REJECTED: "alert",
+  SYSTEM: "alert",
 };
 
 const notificationIcons = {
@@ -65,6 +54,7 @@ const notificationIcons = {
   alert: AlertTriangle,
   message: MessageSquare,
   success: CheckCircle2,
+  announcement: Megaphone,
 };
 
 const notificationIconColors = {
@@ -72,7 +62,30 @@ const notificationIconColors = {
   alert: "bg-amber-100 text-amber-600",
   message: "bg-blue-100 text-blue-600",
   success: "bg-green-100 text-green-600",
+  announcement: "bg-purple-100 text-purple-600",
 };
+
+interface NotifItem {
+  id: string;
+  kind: "notification" | "announcement";
+  icon: keyof typeof notificationIcons;
+  title: string;
+  description: string;
+  link?: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+function timeAgo(date: string): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Ahora";
+  if (minutes < 60) return `Hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Hace ${hours} hora${hours > 1 ? "s" : ""}`;
+  const days = Math.floor(hours / 24);
+  return `Hace ${days} dia${days > 1 ? "s" : ""}`;
+}
 
 export default function DashboardLayout({ role, children }: DashboardLayoutProps) {
   const { data: session } = useSession();
@@ -80,7 +93,8 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [notifications, setNotifications] = useState(mockNotifications[role]);
+  const [notifItems, setNotifItems] = useState<NotifItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -88,7 +102,59 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
   const userName = user?.name ?? "Usuario";
   const userEmail = user?.email ?? "";
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const items: NotifItem[] = [];
+
+      // Map per-user notifications
+      for (const n of data.notifications ?? []) {
+        items.push({
+          id: n.id,
+          kind: "notification",
+          icon: typeToIcon[n.type] ?? "alert",
+          title: n.title,
+          description: n.message,
+          link: n.link,
+          read: n.isRead,
+          createdAt: n.createdAt,
+        });
+      }
+
+      // Map announcements
+      for (const a of data.announcements ?? []) {
+        items.push({
+          id: a.id,
+          kind: "announcement",
+          icon: "announcement",
+          title: a.title,
+          description: a.content,
+          link: null,
+          read: a.isRead,
+          createdAt: a.createdAt,
+        });
+      }
+
+      // Sort by date descending
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setNotifItems(items);
+      setUnreadCount(data.unreadCount ?? 0);
+    } catch {
+      // Silently fail — keep existing state
+    }
+  }, []);
+
+  // Fetch on mount and poll every 30 seconds
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id, fetchNotifications]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -111,9 +177,23 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
     });
   };
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    setNotifItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+    try {
+      await fetch("/api/notifications/read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+    } catch {
+      // Revert on failure
+      fetchNotifications();
+    }
   };
+
+  const viewAllHref =
+    role === "admin" ? "/admin/notifications" : `/${role}/dashboard`;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-50">
@@ -181,7 +261,7 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-[9px] font-bold text-white">
-                    {unreadCount}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </button>
@@ -200,37 +280,48 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
                     )}
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-surface-100">
-                    {notifications.map((notif) => {
-                      const IconComp = notificationIcons[notif.icon];
-                      const iconColor = notificationIconColors[notif.icon];
-                      return (
-                        <div
-                          key={notif.id}
-                          className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-50 ${!notif.read ? "bg-primary-50/30" : ""}`}
-                        >
-                          <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
-                            <IconComp className="h-4 w-4" />
+                    {notifItems.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <Bell className="mx-auto h-8 w-8 text-surface-300" />
+                        <p className="mt-2 text-sm text-surface-500">Sin notificaciones</p>
+                      </div>
+                    ) : (
+                      notifItems.slice(0, 10).map((notif) => {
+                        const IconComp = notificationIcons[notif.icon];
+                        const iconColor = notificationIconColors[notif.icon];
+                        return (
+                          <div
+                            key={`${notif.kind}-${notif.id}`}
+                            className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-50 ${!notif.read ? "bg-primary-50/30" : ""}`}
+                          >
+                            <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconColor}`}>
+                              <IconComp className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-sm leading-snug ${!notif.read ? "font-semibold text-surface-900" : "font-medium text-surface-700"}`}>
+                                {notif.title}
+                              </p>
+                              <p className="mt-0.5 text-xs text-surface-500 leading-snug line-clamp-2">
+                                {notif.description}
+                              </p>
+                              <p className="mt-1 text-[11px] text-surface-400">{timeAgo(notif.createdAt)}</p>
+                            </div>
+                            {!notif.read && (
+                              <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
+                            )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className={`text-sm leading-snug ${!notif.read ? "font-semibold text-surface-900" : "font-medium text-surface-700"}`}>
-                              {notif.title}
-                            </p>
-                            <p className="mt-0.5 text-xs text-surface-500 leading-snug">
-                              {notif.description}
-                            </p>
-                            <p className="mt-1 text-[11px] text-surface-400">{notif.time}</p>
-                          </div>
-                          {!notif.read && (
-                            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary-500" />
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                   <div className="border-t border-surface-100 px-4 py-2.5 text-center">
-                    <button className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors">
+                    <Link
+                      href={viewAllHref}
+                      onClick={() => setNotifOpen(false)}
+                      className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                    >
                       Ver todas las notificaciones
-                    </button>
+                    </Link>
                   </div>
                 </div>
               )}

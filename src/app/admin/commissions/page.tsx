@@ -12,6 +12,7 @@ import {
   Store,
   CheckCircle2,
   Loader2,
+  ShoppingCart,
 } from "lucide-react";
 
 interface SellerWithStats {
@@ -38,6 +39,9 @@ export default function AdminCommissionsPage() {
   const [calcRate, setCalcRate] = useState(10);
   const [savedRows, setSavedRows] = useState<Record<string, boolean>>({});
   const [defaultSaved, setDefaultSaved] = useState(false);
+  const [buyerFeeFixed, setBuyerFeeFixed] = useState(0);
+  const [buyerFeePercent, setBuyerFeePercent] = useState(0);
+  const [buyerFeeSaved, setBuyerFeeSaved] = useState(false);
 
   const fetchCommissions = useCallback(async () => {
     try {
@@ -57,6 +61,16 @@ export default function AdminCommissionsPage() {
 
   useEffect(() => {
     fetchCommissions();
+    // Load buyer fee settings
+    fetch("/api/admin/settings")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          setBuyerFeeFixed(data.buyerServiceFeeFixed ?? 0);
+          setBuyerFeePercent(data.buyerServiceFeePercent ?? 0);
+        }
+      })
+      .catch(() => {});
   }, [fetchCommissions]);
 
   const handleRateChange = (sellerId: string, rate: number) => {
@@ -130,8 +144,33 @@ export default function AdminCommissionsPage() {
     }
   };
 
+  const handleSaveBuyerFee = async () => {
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          buyerServiceFeeFixed: buyerFeeFixed,
+          buyerServiceFeePercent: buyerFeePercent,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save buyer fee");
+      setBuyerFeeSaved(true);
+      setTimeout(() => setBuyerFeeSaved(false), 2000);
+    } catch (error) {
+      console.error("Error saving buyer fee:", error);
+    }
+  };
+
   const calcCommission = calcAmount * (calcRate / 100);
   const calcSellerReceives = calcAmount - calcCommission;
+
+  // Buyer fee preview
+  const buyerFeePreviewAmount = 52;
+  const buyerFeeCalcFixed = buyerFeeFixed;
+  const buyerFeeCalcPercent = buyerFeePreviewAmount * (buyerFeePercent / 100);
+  const buyerFeeTotalCharge = buyerFeeCalcFixed + buyerFeeCalcPercent;
+  const buyerTotalPays = buyerFeePreviewAmount + buyerFeeTotalCharge;
 
   if (loading) {
     return (
@@ -329,6 +368,97 @@ export default function AdminCommissionsPage() {
                   <span className="text-indigo-600 font-medium">
                     Plataforma: {calcRate}%
                   </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Buyer Service Fee */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Cargo de servicio al comprador
+              </h2>
+              <p className="text-sm text-slate-500">
+                Cargo adicional que paga el comprador por cada transaccion
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Cargo fijo ($)
+                </label>
+                <input
+                  type="number"
+                  value={buyerFeeFixed}
+                  onChange={(e) => setBuyerFeeFixed(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  min={0}
+                  step={0.1}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Cargo porcentual (%)
+                </label>
+                <input
+                  type="number"
+                  value={buyerFeePercent}
+                  onChange={(e) => setBuyerFeePercent(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  min={0}
+                  max={50}
+                  step={0.5}
+                />
+              </div>
+              <button
+                onClick={handleSaveBuyerFee}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-all",
+                  buyerFeeSaved
+                    ? "bg-green-500"
+                    : "bg-indigo-600 hover:bg-indigo-700"
+                )}
+              >
+                {buyerFeeSaved ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {buyerFeeSaved ? "Guardado" : "Guardar cargo"}
+              </button>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-700 mb-2">Vista previa</p>
+              <p className="text-sm text-slate-600">
+                Compra de{" "}
+                <span className="font-semibold text-slate-900">
+                  {formatCurrency(buyerFeePreviewAmount)}
+                </span>
+              </p>
+              <div className="mt-2 space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Cargo fijo:</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(buyerFeeCalcFixed)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Cargo {buyerFeePercent}%:</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(buyerFeeCalcPercent)}</span>
+                </div>
+                <div className="border-t border-slate-200 pt-1 flex justify-between text-sm">
+                  <span className="text-slate-500">Total cargo:</span>
+                  <span className="font-semibold text-amber-600">{formatCurrency(buyerFeeTotalCharge)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-slate-700">El comprador paga:</span>
+                  <span className="font-bold text-slate-900">{formatCurrency(buyerTotalPays)}</span>
                 </div>
               </div>
             </div>

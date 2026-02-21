@@ -26,6 +26,9 @@ import {
   ImageIcon,
   FileCheck,
   Store,
+  Bell,
+  ArrowRightLeft,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
@@ -67,6 +70,9 @@ const navigationByRole: Record<Role, NavItem[]> = {
     { label: "Banners", href: "/admin/banners", icon: ImageIcon },
     { label: "Categorias", href: "/admin/categories", icon: Grid3X3 },
     { label: "Comisiones", href: "/admin/commissions", icon: Percent },
+    { label: "Notificaciones", href: "/admin/notifications", icon: Bell },
+    { label: "Tasas de Cambio", href: "/admin/exchange-rates", icon: ArrowRightLeft },
+    { label: "Codigos", href: "/admin/codes", icon: KeyRound },
     { label: "Integraciones API", href: "/admin/api-integrations", icon: Plug },
     { label: "Configuracion", href: "/admin/settings", icon: Settings },
   ],
