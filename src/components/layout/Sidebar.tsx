@@ -68,6 +68,7 @@ const navigationByRole: Record<Role, NavItem[]> = {
   ],
   admin: [
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+    { label: "Pedidos", href: "/admin/orders", icon: ShoppingBag },
     { label: "Usuarios", href: "/admin/users", icon: Users },
     { label: "Verificacion KYC", href: "/admin/kyc", icon: FileCheck },
     { label: "Productos", href: "/admin/products", icon: Package },
