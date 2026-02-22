@@ -16,15 +16,12 @@ import {
   Banknote,
   LayoutGrid,
   List,
-  BadgeCheck,
   ChevronLeft,
-  Star,
   Megaphone,
-  Tag,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
-import { formatCurrency } from "@/lib/utils";
+import ProductCard from "@/components/products/ProductCard";
 import { toFrontendProducts } from "@/lib/api-transforms";
 import type { Product } from "@/types";
 
@@ -79,7 +76,6 @@ export default function HomePage() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [promotedProducts, setPromotedProducts] = useState<Product[]>([]);
-  const [offerProducts, setOfferProducts] = useState<Product[]>([]);
   const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>([]);
 
   // Fetch banners from database
@@ -106,30 +102,14 @@ export default function HomePage() {
       .catch(console.error);
   }, []);
 
-  // Fetch offer/discount products from database (re-fetches every 5 min for rotation)
-  const fetchOffers = useCallback(() => {
-    fetch("/api/products?offers=true&limit=10")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.products)) {
-          setOfferProducts(toFrontendProducts(data.products));
-        }
-      })
-      .catch(console.error);
-  }, []);
-
   useEffect(() => {
     fetchPromoted();
-    fetchOffers();
 
     // Auto-rotate: re-fetch every 5 minutes so users see different products
-    const rotationInterval = setInterval(() => {
-      fetchPromoted();
-      fetchOffers();
-    }, 5 * 60 * 1000);
+    const rotationInterval = setInterval(fetchPromoted, 5 * 60 * 1000);
 
     return () => clearInterval(rotationInterval);
-  }, [fetchPromoted, fetchOffers]);
+  }, [fetchPromoted]);
 
   const slideCount = bannerSlides.length;
 
@@ -354,88 +334,6 @@ export default function HomePage() {
       </section>
 
       {/* ============================================ */}
-      {/* OFERTAS DEL DÍA (Discount Products) */}
-      {/* ============================================ */}
-      {offerProducts.length > 0 && (
-        <section id="ofertas" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-          <div className="flex items-center gap-3 mb-6">
-            <Tag className="w-6 h-6 text-accent-500" />
-            <h2 className="text-2xl font-bold text-surface-900">
-              Ofertas del d&iacute;a
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            {offerProducts.map((product) => (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-shadow group"
-              >
-                <div className="relative bg-surface-100 aspect-square">
-                  {product.image ? (
-                    <Image src={product.image} alt={product.name} fill className="object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Gift className="w-12 h-12 text-surface-300" />
-                    </div>
-                  )}
-                  {/* Discount Badge */}
-                  {product.originalPrice && product.originalPrice > product.price && (
-                    <div className="absolute top-2 left-2">
-                      <span className="bg-accent-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                        -{Math.round((1 - product.price / product.originalPrice) * 100)}% OFERTA
-                      </span>
-                    </div>
-                  )}
-                  {product.region && (
-                    <div className="absolute bottom-2 left-2">
-                      <span className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
-                        {product.region}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 flex flex-col">
-                  <div>
-                    <h3 className="text-sm font-medium text-surface-900 line-clamp-2 mb-1 group-hover:text-primary-600 transition-colors">
-                      <Link href={`/products/${product.id}`}>{product.name}</Link>
-                    </h3>
-                    <p className="text-xs text-surface-400 mb-2">{product.soldCount} Vendidos</p>
-                  </div>
-                  <div className="mb-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-lg font-bold text-surface-900">{formatCurrency(product.price)}</span>
-                      {product.originalPrice && product.originalPrice > product.price && (
-                        <span className="text-xs text-surface-400 line-through">{formatCurrency(product.originalPrice)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href={`/products/${product.id}`}
-                    className="w-full flex items-center justify-center gap-1.5 bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
-                  >
-                    <ArrowRight className="w-3.5 h-3.5" />
-                    Ver oferta
-                  </Link>
-                  <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-surface-100">
-                    <span className="text-[11px] text-surface-500 truncate">{product.sellerName}</span>
-                    <BadgeCheck className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                    {product.sellerRating > 0 && (
-                      <div className="flex items-center gap-0.5 ml-auto">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[11px] text-surface-500">{product.sellerRating}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ============================================ */}
       {/* PROMOCIONES (Promoted Products) */}
       {/* ============================================ */}
       {promotedProducts.length > 0 && (
@@ -479,77 +377,11 @@ export default function HomePage() {
               : "flex flex-col gap-3"
           }>
             {promotedProducts.map((product) => (
-              <div
+              <ProductCard
                 key={product.id}
-                className={`bg-white rounded-xl border border-surface-200 overflow-hidden hover:shadow-md transition-shadow group ${
-                  viewMode === "list" ? "flex flex-row" : ""
-                }`}
-              >
-                <div className={`relative bg-surface-100 ${
-                  viewMode === "list" ? "w-40 shrink-0" : "aspect-square"
-                }`}>
-                  {product.image ? (
-                    <Image src={product.image} alt={product.name} fill className="object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Gift className="w-12 h-12 text-surface-300" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 left-2 flex gap-1">
-                    <span className="bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                      PROMOCIONADO
-                    </span>
-                  </div>
-                  {product.originalPrice && product.originalPrice > product.price && (
-                    <div className="absolute top-2 right-2">
-                      <span className="bg-accent-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                        -{Math.round((1 - product.price / product.originalPrice) * 100)}%
-                      </span>
-                    </div>
-                  )}
-                  {product.region && (
-                    <div className="absolute bottom-2 left-2">
-                      <span className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">
-                        {product.region}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className={`p-3 flex flex-col ${viewMode === "list" ? "flex-1 justify-between" : ""}`}>
-                  <div>
-                    <h3 className="text-sm font-medium text-surface-900 line-clamp-2 mb-1 group-hover:text-primary-600 transition-colors">
-                      <Link href={`/products/${product.id}`}>{product.name}</Link>
-                    </h3>
-                    <p className="text-xs text-surface-400 mb-2">{product.soldCount} Vendidos</p>
-                  </div>
-                  <div className="mb-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-lg font-bold text-surface-900">{formatCurrency(product.price)}</span>
-                      {product.originalPrice && product.originalPrice > product.price && (
-                        <span className="text-xs text-surface-400 line-through">{formatCurrency(product.originalPrice)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href={`/products/${product.id}`}
-                    className="w-full flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
-                  >
-                    <ArrowRight className="w-3.5 h-3.5" />
-                    Ver producto
-                  </Link>
-                  <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-surface-100">
-                    <span className="text-[11px] text-surface-500 truncate">{product.sellerName}</span>
-                    <BadgeCheck className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                    {product.sellerRating > 0 && (
-                      <div className="flex items-center gap-0.5 ml-auto">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[11px] text-surface-500">{product.sellerRating}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                product={product}
+                viewMode={viewMode}
+              />
             ))}
           </div>
         </section>
