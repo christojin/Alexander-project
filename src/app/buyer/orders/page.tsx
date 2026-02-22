@@ -22,6 +22,9 @@ import {
   Lock,
   CalendarDays,
   Loader2,
+  RotateCcw,
+  Wallet,
+  X,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import type { Order, OrderStatus } from "@/types";
@@ -54,6 +57,10 @@ export default function BuyerOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
+  const [refundModal, setRefundModal] = useState<string | null>(null); // orderId
+  const [refundReason, setRefundReason] = useState("");
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [refundResult, setRefundResult] = useState<Record<string, { status: string; amount: number; totalDays?: number; usedDays?: number; remainingDays?: number }>>({});
 
   useEffect(() => {
     async function fetchOrders() {
@@ -113,6 +120,42 @@ export default function BuyerOrdersPage() {
     const lastPart = parts[parts.length - 1];
     const maskedParts = parts.slice(0, -1).map(() => "****");
     return [...maskedParts, lastPart].join("-");
+  };
+
+  const handleRequestRefund = async (orderId: string) => {
+    try {
+      setRefundLoading(true);
+      const res = await fetch(`/api/buyer/orders/${orderId}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: refundReason || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error ?? "Error al solicitar reembolso");
+        return;
+      }
+      setRefundResult((prev) => ({
+        ...prev,
+        [orderId]: {
+          status: "processed",
+          amount: data.refund.refundAmount,
+          totalDays: data.refund.totalDays,
+          usedDays: data.refund.usedDays,
+          remainingDays: data.refund.remainingDays,
+        },
+      }));
+      setRefundModal(null);
+      setRefundReason("");
+      // Update order status in local state
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: "refunded" as const } : o))
+      );
+    } catch {
+      alert("Error al solicitar reembolso");
+    } finally {
+      setRefundLoading(false);
+    }
   };
 
   if (loading) {
@@ -441,8 +484,35 @@ export default function BuyerOrdersPage() {
                           </div>
                         )}
 
-                        {/* Action: Open Ticket */}
-                        <div className="flex justify-end">
+                        {/* Refund status display */}
+                        {refundResult[order.id] && (
+                          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                            <div className="flex items-center gap-2 text-sm font-medium text-green-800">
+                              <Wallet className="h-4 w-4" />
+                              Reembolso de {formatCurrency(refundResult[order.id].amount)} acreditado a tu billetera
+                            </div>
+                            {refundResult[order.id].totalDays && (
+                              <p className="mt-1 text-xs text-green-600">
+                                Prorrateado: {refundResult[order.id].remainingDays}/{refundResult[order.id].totalDays} dias restantes
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Actions: Refund + Open Ticket */}
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {/* Refund button: only for completed streaming orders without existing refund */}
+                          {order.status === "completed" &&
+                            order.productType === "streaming" &&
+                            !refundResult[order.id] && (
+                              <button
+                                onClick={() => setRefundModal(order.id)}
+                                className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:border-red-300 hover:bg-red-50"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                                Solicitar reembolso
+                              </button>
+                            )}
                           <Link
                             href="/buyer/tickets"
                             className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700"
@@ -460,6 +530,69 @@ export default function BuyerOrdersPage() {
           </div>
         )}
       </div>
+
+      {/* Refund Confirmation Modal */}
+      {refundModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-surface-900">
+                Solicitar Reembolso
+              </h3>
+              <button
+                onClick={() => { setRefundModal(null); setRefundReason(""); }}
+                className="rounded-lg p-1 text-surface-400 hover:bg-surface-100 hover:text-surface-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm text-amber-800">
+                  El reembolso se calculara automaticamente en base a los dias restantes de tu suscripcion.
+                  El monto sera acreditado a tu billetera de VirtuMall.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1">
+                  Motivo (opcional)
+                </label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Describe el motivo de tu reembolso..."
+                  rows={3}
+                  className="w-full rounded-lg border border-surface-200 px-3 py-2 text-sm text-surface-900 placeholder:text-surface-400 outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => { setRefundModal(null); setRefundReason(""); }}
+                  disabled={refundLoading}
+                  className="rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:bg-surface-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleRequestRefund(refundModal)}
+                  disabled={refundLoading}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {refundLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Confirmar reembolso
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

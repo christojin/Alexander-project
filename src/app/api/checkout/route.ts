@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe, isStripeConfigured } from "@/lib/stripe";
 import { generateOrderNumber, toPaymentMethodEnum } from "@/lib/order-utils";
+import { debitWallet } from "@/lib/wallet";
+import { assessFraudRisk, scheduleDelayedDelivery } from "@/lib/fraud";
+import { createBinancePayOrder, isBinancePayConfigured } from "@/lib/binance-pay";
+import { createQrBoliviaOrder } from "@/lib/qr-bolivia";
 
 interface CheckoutItem {
   productId: string;
@@ -19,9 +23,10 @@ interface CheckoutItem {
  *
  * Returns:
  *   - stripe:      { type: "redirect", url, orderIds }
- *   - qr_bolivia:  { type: "qr", reference, amount, orderIds }
- *   - binance_pay: { type: "redirect", url, orderIds }  (mock)
- *   - crypto:      { type: "wallet", address, amount, orderIds } (mock)
+ *   - qr_bolivia:  { type: "qr", reference, qrDataUrl, amount, orderIds }
+ *   - binance_pay: { type: "redirect", url, orderIds }
+ *   - crypto:      { type: "mock_complete", orderIds }
+ *   - wallet:      { type: "wallet_complete", orderIds }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -46,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validMethods = ["stripe", "qr_bolivia", "binance_pay", "crypto"];
+    const validMethods = ["stripe", "qr_bolivia", "binance_pay", "crypto", "wallet"];
     if (!validMethods.includes(paymentMethod)) {
       return NextResponse.json(
         { error: "Metodo de pago invalido" },
@@ -111,9 +116,6 @@ export async function POST(req: NextRequest) {
     });
     const serviceFeeFixed = settings?.buyerServiceFeeFixed ?? 0;
     const serviceFeePercent = settings?.buyerServiceFeePercent ?? 0;
-    const highValueThreshold = settings?.highValueThreshold ?? 100;
-    const requireManualReviewAbove =
-      settings?.requireManualReviewAbove ?? 500;
 
     // ── 3. Group items by seller ────────────────────────────────
     const sellerGroups = new Map<
@@ -153,9 +155,6 @@ export async function POST(req: NextRequest) {
       const commissionAmount = subtotal * (commissionRate / 100);
       const sellerEarnings = subtotal - commissionAmount;
 
-      const isHighValue = totalAmount >= highValueThreshold;
-      const requiresManualReview = totalAmount >= requireManualReviewAbove;
-
       const orderNumber = generateOrderNumber();
 
       const order = await prisma.order.create({
@@ -174,8 +173,8 @@ export async function POST(req: NextRequest) {
           paymentMethod: paymentMethodEnum,
           paymentStatus: "PENDING",
           status: "PENDING",
-          isHighValue,
-          requiresManualReview,
+          isHighValue: false,
+          requiresManualReview: false,
           items: {
             create: group.items.map((i) => ({
               productId: i.product.id,
@@ -211,7 +210,68 @@ export async function POST(req: NextRequest) {
     );
     const orderIds = createdOrders.map((o) => o.id);
 
+    // ── 4b. Anti-fraud assessment ──────────────────────────────
+    const fraudResult = await assessFraudRisk({
+      buyerId: session.user.id,
+      totalAmount: grandTotal,
+      paymentMethod,
+      itemCount: items.length,
+    });
+
+    // Update orders with fraud flags
+    for (const orderId of orderIds) {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          isHighValue: fraudResult.isHighValue,
+          requiresManualReview: fraudResult.requiresManualReview,
+        },
+      });
+
+      // Schedule delayed delivery if needed
+      if (fraudResult.shouldDelay) {
+        await scheduleDelayedDelivery(orderId, fraudResult.delayMinutes);
+      }
+    }
+
     // ── 5. Initiate payment based on method ─────────────────────
+
+    // --- WALLET ---
+    if (paymentMethod === "wallet") {
+      const debitResult = await debitWallet({
+        userId: session.user.id,
+        amount: grandTotal,
+        description: `Compra - Ordenes: ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
+        orderId: orderIds[0],
+      });
+
+      if (!debitResult.success) {
+        // Clean up created orders
+        for (const orderId of orderIds) {
+          await prisma.payment.delete({ where: { orderId } });
+          await prisma.orderItem.deleteMany({ where: { orderId } });
+          await prisma.order.delete({ where: { id: orderId } });
+        }
+        return NextResponse.json({ error: debitResult.error }, { status: 400 });
+      }
+
+      // Mark wallet amount used on orders
+      for (const orderId of orderIds) {
+        const o = createdOrders.find((c) => c.id === orderId);
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { walletAmountUsed: o?.totalAmount ?? 0 },
+        });
+      }
+
+      // Complete orders
+      await completeOrders(orderIds, session.user.id, `wallet_${debitResult.transactionId}`);
+      return NextResponse.json({
+        type: "wallet_complete",
+        orderIds,
+        message: "Pago realizado con saldo de billetera.",
+      });
+    }
 
     // --- STRIPE ---
     if (paymentMethod === "stripe") {
@@ -283,37 +343,94 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- QR BOLIVIA (mock/sandbox) ---
+    // --- QR BOLIVIA ---
     if (paymentMethod === "qr_bolivia") {
-      const reference = `QR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const result = await createQrBoliviaOrder({
+        amount: grandTotal,
+        orderIds,
+        description: `VendorVault - ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
+      });
 
-      // Store reference in payment records
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.error ?? "Error al generar QR de pago" },
+          { status: 500 }
+        );
+      }
+
+      // Store provider order ID in payment records
       for (const orderId of orderIds) {
         await prisma.payment.update({
           where: { orderId },
           data: {
-            externalPaymentId: reference,
-            paymentDetails: { provider: "qr_bolivia", reference },
+            externalPaymentId: result.orderId,
+            paymentDetails: {
+              provider: "qr_bolivia",
+              providerOrderId: result.orderId,
+              sandbox: result.sandbox ?? false,
+            },
           },
         });
       }
 
       return NextResponse.json({
         type: "qr",
-        reference,
+        reference: result.orderId,
+        qrDataUrl: result.qrImageUrl ?? "",
         amount: grandTotal,
         orderIds,
+        expiresAt: result.expiresAt,
+        sandbox: result.sandbox ?? false,
       });
     }
 
-    // --- BINANCE PAY (mock) ---
+    // --- BINANCE PAY ---
     if (paymentMethod === "binance_pay") {
-      // Mock: auto-complete
-      await completeOrders(orderIds, session.user.id, "mock_binance_" + Date.now());
-      return NextResponse.json({
-        type: "mock_complete",
+      if (!isBinancePayConfigured()) {
+        // Mock mode: auto-complete
+        await completeOrders(orderIds, session.user.id, "mock_binance_" + Date.now());
+        return NextResponse.json({
+          type: "mock_complete",
+          orderIds,
+          message: "Binance Pay no configurado. Pedido completado en modo demo.",
+        });
+      }
+
+      const result = await createBinancePayOrder({
+        amount: grandTotal,
         orderIds,
-        message: "Binance Pay en modo demo. Pedido completado.",
+        description: `VirtuMall - ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
+      });
+
+      if (!result.success || !result.checkoutUrl) {
+        // Fallback to mock mode
+        await completeOrders(orderIds, session.user.id, "mock_binance_" + Date.now());
+        return NextResponse.json({
+          type: "mock_complete",
+          orderIds,
+          message: result.error ?? "Error con Binance Pay. Pedido completado en modo demo.",
+        });
+      }
+
+      // Store Binance trade number in payment records
+      for (const orderId of orderIds) {
+        await prisma.payment.update({
+          where: { orderId },
+          data: {
+            externalPaymentId: result.merchantTradeNo,
+            paymentDetails: {
+              provider: "binance_pay",
+              prepayId: result.prepayId,
+              checkoutUrl: result.checkoutUrl,
+            },
+          },
+        });
+      }
+
+      return NextResponse.json({
+        type: "redirect",
+        url: result.checkoutUrl,
+        orderIds,
       });
     }
 
@@ -344,6 +461,8 @@ async function completeOrders(
   buyerId: string,
   externalPaymentId: string
 ) {
+  const { fulfillOrder } = await import("@/lib/order-fulfillment");
+
   for (const orderId of orderIds) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -351,84 +470,25 @@ async function completeOrders(
     });
     if (!order || order.status !== "PENDING") continue;
 
-    // Assign digital codes for instant-delivery items
-    for (const item of order.items) {
-      if (item.deliveryType === "INSTANT") {
-        if (item.productType === "GIFT_CARD" || item.productType === "TOP_UP") {
-          // Assign gift card codes
-          const codes = await prisma.giftCardCode.findMany({
-            where: { productId: item.productId, status: "AVAILABLE" },
-            take: item.quantity,
-          });
-          for (const code of codes) {
-            await prisma.giftCardCode.update({
-              where: { id: code.id },
-              data: {
-                status: "SOLD",
-                soldAt: new Date(),
-                buyerId,
-                orderId: item.id,
-              },
-            });
-          }
-        } else if (item.productType === "STREAMING") {
-          // Assign streaming accounts (1 per quantity for COMPLETE_ACCOUNT)
-          const accounts = await prisma.streamingAccount.findMany({
-            where: { productId: item.productId, status: "AVAILABLE" },
-            take: item.quantity,
-          });
-          for (const account of accounts) {
-            await prisma.streamingAccount.update({
-              where: { id: account.id },
-              data: { status: "SOLD", soldAt: new Date() },
-            });
-          }
-        }
-
-        // Mark item as delivered
-        await prisma.orderItem.update({
-          where: { id: item.id },
-          data: { isDelivered: true, deliveredAt: new Date() },
-        });
-      }
-    }
-
-    // Update product stock counts
-    for (const item of order.items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: { soldCount: { increment: item.quantity } },
-      });
-    }
-
-    // Update seller earnings
-    await prisma.sellerProfile.update({
-      where: { id: order.sellerId },
-      data: {
-        totalSales: { increment: 1 },
-        totalEarnings: { increment: order.sellerEarnings },
-        availableBalance: { increment: order.sellerEarnings },
+    await fulfillOrder(
+      {
+        id: order.id,
+        sellerId: order.sellerId,
+        orderNumber: order.orderNumber,
+        sellerEarnings: order.sellerEarnings,
+        requiresManualReview: order.requiresManualReview,
+        paymentStatus: order.paymentStatus,
+        items: order.items.map((item) => ({
+          id: item.id,
+          productId: item.productId,
+          productName: item.productName,
+          productType: item.productType,
+          deliveryType: item.deliveryType,
+          quantity: item.quantity,
+        })),
       },
-    });
-
-    // Mark order as completed
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: order.requiresManualReview ? "UNDER_REVIEW" : "COMPLETED",
-        paymentStatus: "COMPLETED",
-        completedAt: order.requiresManualReview ? undefined : new Date(),
-      },
-    });
-
-    // Mark payment as completed
-    await prisma.payment.update({
-      where: { orderId },
-      data: {
-        status: "COMPLETED",
-        externalPaymentId,
-        completedAt: new Date(),
-      },
-    });
+      buyerId,
+      externalPaymentId
+    );
   }
 }

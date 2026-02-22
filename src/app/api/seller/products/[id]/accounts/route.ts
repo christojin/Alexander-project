@@ -29,6 +29,11 @@ async function verifySellerProduct(productId: string) {
   return { seller, product } as const;
 }
 
+/** Convert expirationDays to a Date */
+function daysToDate(days: number): Date {
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
 /**
  * GET /api/seller/products/[id]/accounts
  * List streaming accounts for a product.
@@ -96,8 +101,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
 /**
  * POST /api/seller/products/[id]/accounts
- * Add a streaming account.
- * Body: { email, username?, password, expiresAt?, maxProfiles? }
+ * Add streaming account(s).
+ *
+ * Single:  { email, username?, password, expirationDays?, maxProfiles? }
+ * Bulk:    { accounts: [{ email, username?, password, expirationDays? }] }
  */
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
@@ -117,66 +124,94 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const { email, username, password, expiresAt, maxProfiles } = body;
+    const profileMode = product.streamingMode === "PROFILE";
 
-    if (!email || !password) {
+    // Normalize input: support both single and bulk
+    interface AccountInput {
+      email: string;
+      username?: string;
+      password: string;
+      expirationDays?: number;
+      maxProfiles?: number;
+    }
+
+    let accountInputs: AccountInput[];
+
+    if (Array.isArray(body.accounts)) {
+      // Bulk mode
+      accountInputs = body.accounts;
+    } else {
+      // Single mode
+      accountInputs = [{
+        email: body.email,
+        username: body.username,
+        password: body.password,
+        expirationDays: body.expirationDays,
+        maxProfiles: body.maxProfiles,
+      }];
+    }
+
+    // Validate
+    const invalid = accountInputs.find((a) => !a.email || !a.password);
+    if (invalid || accountInputs.length === 0) {
       return NextResponse.json(
-        { error: "Email y contrasena son requeridos" },
+        { error: "Email y contrasena son requeridos para cada cuenta" },
         { status: 400 }
       );
     }
 
-    // AES-256-GCM encryption
-    const emailEncrypted = encrypt(email);
-    const passwordEncrypted = encrypt(password);
-    const usernameEncrypted = username ? encrypt(username) : null;
+    let addedCount = 0;
 
-    const profileMode = product.streamingMode === "PROFILE";
-    const numProfiles = profileMode ? (maxProfiles || product.profileCount || 1) : 1;
+    for (const input of accountInputs) {
+      const emailEncrypted = encrypt(input.email);
+      const passwordEncrypted = encrypt(input.password);
+      const usernameEncrypted = input.username ? encrypt(input.username) : null;
+      const numProfiles = profileMode ? (input.maxProfiles || product.profileCount || 1) : 1;
+      const expiresAt = input.expirationDays && input.expirationDays > 0
+        ? daysToDate(input.expirationDays)
+        : null;
 
-    // Create account + profiles and update stock in a transaction
-    const account = await prisma.$transaction(async (tx) => {
-      const created = await tx.streamingAccount.create({
-        data: {
-          productId: id,
-          emailEncrypted,
-          usernameEncrypted,
-          passwordEncrypted,
-          expiresAt: expiresAt ? new Date(expiresAt) : null,
-          maxProfiles: numProfiles,
-          status: "AVAILABLE",
-        },
+      await prisma.$transaction(async (tx) => {
+        const created = await tx.streamingAccount.create({
+          data: {
+            productId: id,
+            emailEncrypted,
+            usernameEncrypted,
+            passwordEncrypted,
+            expiresAt,
+            maxProfiles: numProfiles,
+            status: "AVAILABLE",
+          },
+        });
+
+        if (profileMode && numProfiles > 1) {
+          await tx.streamingProfile.createMany({
+            data: Array.from({ length: numProfiles }, (_, i) => ({
+              streamingAccountId: created.id,
+              profileNumber: i + 1,
+            })),
+          });
+          await tx.product.update({
+            where: { id },
+            data: { stockCount: { increment: numProfiles } },
+          });
+        } else {
+          await tx.product.update({
+            where: { id },
+            data: { stockCount: { increment: 1 } },
+          });
+        }
       });
 
-      // Create profile slots for PROFILE mode
-      if (profileMode && numProfiles > 1) {
-        await tx.streamingProfile.createMany({
-          data: Array.from({ length: numProfiles }, (_, i) => ({
-            streamingAccountId: created.id,
-            profileNumber: i + 1,
-          })),
-        });
-
-        // Each profile is a sellable unit
-        await tx.product.update({
-          where: { id },
-          data: { stockCount: { increment: numProfiles } },
-        });
-      } else {
-        // Complete account = 1 stock unit
-        await tx.product.update({
-          where: { id },
-          data: { stockCount: { increment: 1 } },
-        });
-      }
-
-      return created;
-    });
+      addedCount++;
+    }
 
     return NextResponse.json(
       {
-        message: "Cuenta agregada exitosamente",
-        accountId: account.id,
+        message: addedCount === 1
+          ? "Cuenta agregada exitosamente"
+          : `${addedCount} cuentas agregadas exitosamente`,
+        added: addedCount,
       },
       { status: 201 }
     );
@@ -192,7 +227,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 /**
  * PATCH /api/seller/products/[id]/accounts
  * Edit or suspend/resume a streaming account.
- * Body: { accountId, email?, username?, password?, expiresAt?, action?: "suspend" | "resume" }
+ * Body: { accountId, email?, username?, password?, expirationDays?, action?: "suspend" | "resume" }
  */
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
@@ -203,7 +238,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const body = await req.json();
-    const { accountId, email, username, password, expiresAt, action } = body;
+    const { accountId, email, username, password, expirationDays, action } = body;
 
     if (!accountId) {
       return NextResponse.json(
@@ -212,7 +247,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify account belongs to this product
     const account = await prisma.streamingAccount.findFirst({
       where: { id: accountId, productId: id },
     });
@@ -246,7 +280,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           data: { status: newStatus },
         });
 
-        // Adjust stock: suspend removes from stock, resume adds back
         const profileMode = result.product.streamingMode === "PROFILE";
         const stockDelta = action === "suspend"
           ? -(profileMode ? account.maxProfiles - account.soldProfiles : 1)
@@ -279,7 +312,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (email) updateData.emailEncrypted = encrypt(email);
     if (username !== undefined) updateData.usernameEncrypted = username ? encrypt(username) : null;
     if (password) updateData.passwordEncrypted = encrypt(password);
-    if (expiresAt !== undefined) updateData.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (expirationDays !== undefined) {
+      updateData.expiresAt = expirationDays && expirationDays > 0
+        ? daysToDate(expirationDays)
+        : null;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(

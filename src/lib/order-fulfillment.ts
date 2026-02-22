@@ -19,13 +19,41 @@ interface OrderWithItems {
 
 /**
  * Fulfill a single order: assign codes/accounts, update stock, create chat, update seller.
- * Shared between checkout/confirm and webhooks/stripe.
+ * Shared between checkout/confirm, webhooks/stripe, and delayed delivery processing.
+ *
+ * If the order has a future deliveryScheduledAt, delivery is deferred:
+ * the order moves to PROCESSING and codes are NOT assigned yet.
  */
 export async function fulfillOrder(
   order: OrderWithItems,
   buyerId: string,
   externalPaymentId: string
 ) {
+  // Fetch current DB state for idempotency and delay checks
+  const fullOrder = await prisma.order.findUnique({
+    where: { id: order.id },
+    select: { status: true, paymentStatus: true, deliveryScheduledAt: true },
+  });
+
+  // Idempotency guard: skip if already completed or refunded
+  if (fullOrder?.status === "COMPLETED" || fullOrder?.status === "REFUNDED" || fullOrder?.status === "CANCELLED") {
+    return;
+  }
+
+  // Check if delivery should be delayed (anti-fraud)
+  if (fullOrder?.deliveryScheduledAt && new Date() < fullOrder.deliveryScheduledAt) {
+    // Payment received but delivery is delayed — mark as PROCESSING
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "PROCESSING", paymentStatus: "COMPLETED" },
+    });
+    await prisma.payment.update({
+      where: { orderId: order.id },
+      data: { status: "COMPLETED", externalPaymentId, completedAt: new Date() },
+    });
+    return; // Codes will be assigned later by processDelayedDeliveries()
+  }
+
   // Assign digital codes for instant-delivery items
   for (const item of order.items) {
     if (item.deliveryType === "INSTANT") {

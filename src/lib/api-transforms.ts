@@ -82,6 +82,7 @@ const paymentMethodMap: Record<string, string> = {
   QR_BOLIVIA: "qr_bolivia",
   BINANCE_PAY: "binance_pay",
   CRYPTO: "crypto",
+  WALLET: "wallet",
 };
 
 const paymentStatusMap: Record<string, string> = {

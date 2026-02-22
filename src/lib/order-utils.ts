@@ -18,12 +18,13 @@ export function generateOrderNumber(): string {
  */
 export function toPaymentMethodEnum(
   method: string
-): "STRIPE" | "QR_BOLIVIA" | "BINANCE_PAY" | "CRYPTO" {
-  const map: Record<string, "STRIPE" | "QR_BOLIVIA" | "BINANCE_PAY" | "CRYPTO"> = {
+): "STRIPE" | "QR_BOLIVIA" | "BINANCE_PAY" | "CRYPTO" | "WALLET" {
+  const map: Record<string, "STRIPE" | "QR_BOLIVIA" | "BINANCE_PAY" | "CRYPTO" | "WALLET"> = {
     stripe: "STRIPE",
     qr_bolivia: "QR_BOLIVIA",
     binance_pay: "BINANCE_PAY",
     crypto: "CRYPTO",
+    wallet: "WALLET",
   };
   return map[method] || "STRIPE";
 }

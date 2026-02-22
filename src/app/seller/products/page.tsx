@@ -220,6 +220,12 @@ export default function SellerProductsPage() {
   const [accountForm, setAccountForm] = useState({ email: "", username: "", password: "", expiresAt: "" });
   const [accountSaving, setAccountSaving] = useState(false);
 
+  // Streaming account add/upload state
+  const [newAccountForm, setNewAccountForm] = useState({ email: "", username: "", password: "", expirationDays: "" });
+  const [accountCsvFile, setAccountCsvFile] = useState<File | null>(null);
+  const [accountCsvUploading, setAccountCsvUploading] = useState(false);
+  const [accountCsvResult, setAccountCsvResult] = useState<string | null>(null);
+
   // ---------- Data Fetching ----------
 
   const fetchProducts = useCallback(async () => {
@@ -428,7 +434,7 @@ export default function SellerProductsPage() {
               email: form.streamingEmail,
               username: form.streamingUsername || undefined,
               password: form.streamingPassword,
-              expiresAt: form.streamingExpiration || undefined,
+              expirationDays: form.streamingExpiration ? parseInt(form.streamingExpiration) : undefined,
             }),
           }
         );
@@ -672,7 +678,7 @@ export default function SellerProductsPage() {
           email: accountForm.email || undefined,
           username: accountForm.username || undefined,
           password: accountForm.password || undefined,
-          expiresAt: accountForm.expiresAt || undefined,
+          expirationDays: accountForm.expiresAt ? parseInt(accountForm.expiresAt) : undefined,
         }),
       });
       if (!res.ok) {
@@ -713,12 +719,97 @@ export default function SellerProductsPage() {
 
   const startEditAccount = (account: AccountItem) => {
     setEditingAccount(account);
+    // Calculate remaining days from expiresAt
+    let remainingDays = "";
+    if (account.expiresAt) {
+      const diff = new Date(account.expiresAt).getTime() - Date.now();
+      remainingDays = Math.max(0, Math.ceil(diff / 86400000)).toString();
+    }
     setAccountForm({
       email: account.email ?? "",
       username: account.username ?? "",
       password: "",
-      expiresAt: account.expiresAt ? account.expiresAt.split("T")[0] : "",
+      expiresAt: remainingDays,
     });
+  };
+
+  const handleAddSingleAccount = async () => {
+    if (!accountsModalProduct || !newAccountForm.email.trim() || !newAccountForm.password.trim()) return;
+    setAccountSaving(true);
+    try {
+      const res = await fetch(`/api/seller/products/${accountsModalProduct.id}/accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: newAccountForm.email.trim(),
+          username: newAccountForm.username.trim() || undefined,
+          password: newAccountForm.password,
+          expirationDays: newAccountForm.expirationDays ? parseInt(newAccountForm.expirationDays) : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al agregar cuenta");
+      }
+      setNewAccountForm({ email: "", username: "", password: "", expirationDays: "" });
+      await fetchAccounts(accountsModalProduct.id);
+      await fetchProducts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setAccountSaving(false);
+    }
+  };
+
+  const handleAccountCsvUpload = async () => {
+    if (!accountCsvFile || !accountsModalProduct) return;
+    setAccountCsvUploading(true);
+    setAccountCsvResult(null);
+    try {
+      const text = await accountCsvFile.text();
+      const accounts: { email: string; password: string; username?: string; expirationDays?: number }[] = [];
+
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        // Format: email,password[,username][,expirationDays]
+        const parts = trimmed.split(/[,;]/).map((p) => p.trim().replace(/^["']|["']$/g, ""));
+        if (parts.length >= 2 && parts[0] && parts[1]) {
+          const entry: { email: string; password: string; username?: string; expirationDays?: number } = {
+            email: parts[0],
+            password: parts[1],
+          };
+          if (parts[2]) entry.username = parts[2];
+          if (parts[3] && !isNaN(Number(parts[3]))) entry.expirationDays = Number(parts[3]);
+          accounts.push(entry);
+        }
+      }
+
+      if (accounts.length === 0) {
+        setAccountCsvResult("No se encontraron cuentas validas. Formato: email,contrasena[,usuario][,dias]");
+        return;
+      }
+
+      const res = await fetch(`/api/seller/products/${accountsModalProduct.id}/accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accounts }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Error al importar");
+      }
+      const data = await res.json();
+      setAccountCsvResult(`${data.added} cuentas importadas exitosamente`);
+      setAccountCsvFile(null);
+      await fetchAccounts(accountsModalProduct.id);
+      await fetchProducts();
+    } catch (err) {
+      setAccountCsvResult(err instanceof Error ? err.message : "Error al procesar archivo");
+    } finally {
+      setAccountCsvUploading(false);
+    }
   };
 
   const filteredAccounts = useMemo(() => {
@@ -1363,8 +1454,9 @@ export default function SellerProductsPage() {
                       iconLeft={<Lock className="size-4" />}
                     />
                     <Input
-                      label="Fecha de expiracion"
-                      type="date"
+                      label="Duracion (dias)"
+                      type="number"
+                      placeholder="Ej: 30"
                       value={form.streamingExpiration}
                       onChange={(e) => updateForm("streamingExpiration", e.target.value)}
                       iconLeft={<CalendarDays className="size-4" />}
@@ -1640,6 +1732,9 @@ export default function SellerProductsPage() {
             setAccountsSummary(null);
             setEditingAccount(null);
             setAccountForm({ email: "", username: "", password: "", expiresAt: "" });
+            setNewAccountForm({ email: "", username: "", password: "", expirationDays: "" });
+            setAccountCsvFile(null);
+            setAccountCsvResult(null);
           }}
           title={`Cuentas: ${accountsModalProduct?.name ?? ""}`}
           size="lg"
@@ -1679,6 +1774,104 @@ export default function SellerProductsPage() {
                 )}
               </div>
             )}
+
+            {/* Add Individual Account */}
+            <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                <Plus className="size-4" />
+                Agregar cuenta
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="Correo electronico"
+                  placeholder="cuenta@email.com"
+                  value={newAccountForm.email}
+                  onChange={(e) => setNewAccountForm((prev) => ({ ...prev, email: e.target.value }))}
+                  iconLeft={<Mail className="size-4" />}
+                />
+                <Input
+                  label="Contrasena"
+                  placeholder="contrasena123"
+                  value={newAccountForm.password}
+                  onChange={(e) => setNewAccountForm((prev) => ({ ...prev, password: e.target.value }))}
+                  iconLeft={<Lock className="size-4" />}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="Usuario (opcional)"
+                  placeholder="nombre_usuario"
+                  value={newAccountForm.username}
+                  onChange={(e) => setNewAccountForm((prev) => ({ ...prev, username: e.target.value }))}
+                  iconLeft={<User className="size-4" />}
+                />
+                <Input
+                  label="Duracion (dias)"
+                  type="number"
+                  placeholder="Ej: 30"
+                  value={newAccountForm.expirationDays}
+                  onChange={(e) => setNewAccountForm((prev) => ({ ...prev, expirationDays: e.target.value }))}
+                  iconLeft={<CalendarDays className="size-4" />}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleAddSingleAccount}
+                  disabled={accountSaving || !newAccountForm.email.trim() || !newAccountForm.password.trim()}
+                >
+                  {accountSaving ? <Loader2 className="size-4 animate-spin" /> : "Agregar"}
+                </Button>
+              </div>
+            </div>
+
+            {/* CSV/Excel Upload for Accounts */}
+            <div className="space-y-3 rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-surface-700">
+                <FileSpreadsheet className="size-4" />
+                Importar desde archivo
+              </h4>
+              <p className="text-xs text-surface-500">
+                Sube un archivo CSV con cuentas. Formato: email,contrasena,usuario(opcional),dias(opcional) — una cuenta por linea.
+              </p>
+              <div className="flex items-center gap-3">
+                <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-surface-300 bg-white px-4 py-2.5 text-sm transition-colors hover:border-primary-400 hover:bg-primary-50/30">
+                  <Upload className="size-4 shrink-0 text-surface-400" />
+                  <span className="text-surface-600">
+                    {accountCsvFile ? accountCsvFile.name : "Seleccionar archivo (.csv, .txt)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      setAccountCsvFile(e.target.files?.[0] ?? null);
+                      setAccountCsvResult(null);
+                    }}
+                  />
+                </label>
+                {accountCsvFile && (
+                  <button onClick={() => { setAccountCsvFile(null); setAccountCsvResult(null); }} className="text-surface-400 hover:text-surface-600">
+                    <XIcon className="size-4" />
+                  </button>
+                )}
+                <Button
+                  onClick={handleAccountCsvUpload}
+                  disabled={!accountCsvFile || accountCsvUploading}
+                  variant="outline"
+                >
+                  {accountCsvUploading ? <Loader2 className="size-4 animate-spin" /> : "Importar"}
+                </Button>
+              </div>
+              {accountCsvResult && (
+                <div className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-2 text-xs",
+                  accountCsvResult.includes("exitosamente") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                )}>
+                  {accountCsvResult.includes("exitosamente") ? <CheckCircle2 className="size-3.5 shrink-0" /> : <AlertCircle className="size-3.5 shrink-0" />}
+                  {accountCsvResult}
+                </div>
+              )}
+            </div>
 
             {/* Edit Account Form */}
             {editingAccount && (
@@ -1720,8 +1913,9 @@ export default function SellerProductsPage() {
                     iconLeft={<Lock className="size-4" />}
                   />
                   <Input
-                    label="Fecha de expiracion"
-                    type="date"
+                    label="Duracion (dias desde hoy)"
+                    type="number"
+                    placeholder="Ej: 30"
                     value={accountForm.expiresAt}
                     onChange={(e) => setAccountForm((prev) => ({ ...prev, expiresAt: e.target.value }))}
                     iconLeft={<CalendarDays className="size-4" />}
@@ -1862,6 +2056,9 @@ export default function SellerProductsPage() {
                 setAccountsList([]);
                 setAccountsSummary(null);
                 setEditingAccount(null);
+                setNewAccountForm({ email: "", username: "", password: "", expirationDays: "" });
+                setAccountCsvFile(null);
+                setAccountCsvResult(null);
               }}>
                 Cerrar
               </Button>

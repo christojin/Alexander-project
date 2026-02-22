@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fulfillOrder } from "@/lib/order-fulfillment";
+import { verifyQrBoliviaPayment, isQrBoliviaConfigured } from "@/lib/qr-bolivia";
 
 /**
  * POST /api/checkout/confirm
  *
- * Confirm payment for non-Stripe methods (QR Bolivia, etc.).
- * In production, this would verify with the payment provider.
- * Currently operates in mock/sandbox mode.
+ * Confirm payment for QR Bolivia.
+ * When provider is configured, verifies payment with the provider before fulfilling.
+ * When not configured (sandbox), allows manual confirmation.
  *
  * Body: { orderIds: string[], reference: string }
  */
@@ -42,7 +43,10 @@ export async function POST(req: NextRequest) {
         buyerId: session.user.id,
         paymentStatus: "PENDING",
       },
-      include: { items: true },
+      include: {
+        items: true,
+        payment: { select: { externalPaymentId: true } },
+      },
     });
 
     if (orders.length !== orderIds.length) {
@@ -51,6 +55,21 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify payment with provider if configured
+    if (isQrBoliviaConfigured()) {
+      const externalId = orders[0]?.payment?.externalPaymentId;
+      if (externalId) {
+        const verification = await verifyQrBoliviaPayment(externalId);
+        if (!verification.paid) {
+          return NextResponse.json(
+            { error: "El pago aun no ha sido verificado. Espera unos momentos e intenta nuevamente." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+    // If not configured (sandbox), skip verification and allow manual confirmation
 
     for (const order of orders) {
       await fulfillOrder(

@@ -15,6 +15,7 @@ import {
   Package,
   Clock,
   Loader2,
+  Wallet,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import type { Order } from "@/types";
@@ -37,6 +38,7 @@ interface DashboardData {
 export default function BuyerDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
 
@@ -54,7 +56,20 @@ export default function BuyerDashboardPage() {
       }
     }
 
+    async function fetchWalletBalance() {
+      try {
+        const res = await fetch("/api/buyer/wallet");
+        if (res.ok) {
+          const json = await res.json();
+          setWalletBalance(json.balance ?? 0);
+        }
+      } catch {
+        // Wallet balance is non-critical
+      }
+    }
+
     fetchDashboard();
+    fetchWalletBalance();
   }, []);
 
   if (loading) {
@@ -113,6 +128,14 @@ export default function BuyerDashboardPage() {
       iconColor: "text-accent-600",
     },
     {
+      label: "Saldo billetera",
+      value: formatCurrency(walletBalance),
+      icon: Wallet,
+      iconBg: "bg-emerald-100",
+      iconColor: "text-emerald-600",
+      href: "/buyer/wallet",
+    },
+    {
       label: "Tickets abiertos",
       value: openTickets.toString(),
       icon: TicketCheck,
@@ -142,32 +165,48 @@ export default function BuyerDashboardPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {statCards.map((stat) => {
             const Icon = stat.icon;
+            const cardContent = (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-surface-500">
+                    {stat.label}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-bold text-surface-900">
+                    {stat.value}
+                  </p>
+                </div>
+                <div
+                  className={cn(
+                    "flex h-11 w-11 items-center justify-center rounded-lg",
+                    stat.iconBg
+                  )}
+                >
+                  <Icon className={cn("h-5.5 w-5.5", stat.iconColor)} />
+                </div>
+              </div>
+            );
+
+            if (stat.href) {
+              return (
+                <Link
+                  key={stat.label}
+                  href={stat.href}
+                  className="rounded-xl border border-surface-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md hover:border-primary-200"
+                >
+                  {cardContent}
+                </Link>
+              );
+            }
+
             return (
               <div
                 key={stat.label}
                 className="rounded-xl border border-surface-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-surface-500">
-                      {stat.label}
-                    </p>
-                    <p className="mt-1.5 text-2xl font-bold text-surface-900">
-                      {stat.value}
-                    </p>
-                  </div>
-                  <div
-                    className={cn(
-                      "flex h-11 w-11 items-center justify-center rounded-lg",
-                      stat.iconBg
-                    )}
-                  >
-                    <Icon className={cn("h-5.5 w-5.5", stat.iconColor)} />
-                  </div>
-                </div>
+                {cardContent}
               </div>
             );
           })}

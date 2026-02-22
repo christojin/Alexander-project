@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Globe,
   AlertCircle,
+  Wallet,
 } from "lucide-react";
 import { Header, Footer } from "@/components/layout";
 import { useApp } from "@/context/AppContext";
@@ -36,7 +37,7 @@ interface PaymentOption {
   recommended?: boolean;
 }
 
-const paymentOptions: PaymentOption[] = [
+const basePaymentOptions: PaymentOption[] = [
   {
     id: "qr_bolivia",
     label: "QR Bolivia",
@@ -71,13 +72,111 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletLoading, setWalletLoading] = useState(true);
+
   // QR Bolivia state
   const [qrState, setQrState] = useState<{
     reference: string;
+    qrDataUrl?: string;
     amount: number;
     orderIds: string[];
+    expiresAt?: string;
+    sandbox?: boolean;
   } | null>(null);
   const [isConfirmingQr, setIsConfirmingQr] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "completed" | "expired">("pending");
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
+
+  // Fetch wallet balance on mount
+  useEffect(() => {
+    async function fetchWalletBalance() {
+      try {
+        const res = await fetch("/api/buyer/wallet");
+        if (res.ok) {
+          const data = await res.json();
+          setWalletBalance(data.balance ?? 0);
+        }
+      } catch {
+        // Silently fail — wallet option just won't show
+      } finally {
+        setWalletLoading(false);
+      }
+    }
+    fetchWalletBalance();
+  }, []);
+
+  // Poll for payment status when QR is active
+  useEffect(() => {
+    if (!qrState || paymentStatus !== "pending") return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/checkout/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderIds: qrState.orderIds }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "completed") {
+            setPaymentStatus("completed");
+            clearCart();
+            const orderIdsParam = qrState.orderIds.join(",");
+            window.location.href = `/checkout/success?orderIds=${orderIdsParam}`;
+          } else if (data.status === "expired") {
+            setPaymentStatus("expired");
+          }
+        }
+      } catch {
+        // Silently fail — will retry on next poll
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [qrState, paymentStatus, clearCart]);
+
+  // QR expiration countdown timer
+  useEffect(() => {
+    if (!qrState?.expiresAt) return;
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const expiresAt = new Date(qrState.expiresAt!).getTime();
+      const diff = expiresAt - now;
+
+      if (diff <= 0) {
+        setTimeRemaining("Expirado");
+        setPaymentStatus("expired");
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+    };
+
+    updateTimer();
+    const timerInterval = setInterval(updateTimer, 1000);
+    return () => clearInterval(timerInterval);
+  }, [qrState?.expiresAt]);
+
+  // Build payment options dynamically (wallet shown if balance > 0)
+  const paymentOptions: PaymentOption[] = [
+    ...(!walletLoading && walletBalance > 0
+      ? [
+          {
+            id: "wallet" as PaymentMethod,
+            label: "Billetera VendorVault",
+            description: `Saldo disponible: ${formatCurrency(walletBalance)}`,
+            icon: Wallet,
+          },
+        ]
+      : []),
+    ...basePaymentOptions,
+  ];
 
   const currentStep = 2;
 
@@ -118,15 +217,19 @@ export default function CheckoutPage() {
         // QR Bolivia: show QR and wait for confirmation
         setQrState({
           reference: data.reference,
+          qrDataUrl: data.qrDataUrl,
           amount: data.amount,
           orderIds: data.orderIds,
+          expiresAt: data.expiresAt,
+          sandbox: data.sandbox,
         });
+        setPaymentStatus("pending");
         setIsProcessing(false);
         return;
       }
 
-      if (data.type === "mock_complete") {
-        // Mock payment (Binance, Crypto, or Stripe without keys)
+      if (data.type === "wallet_complete" || data.type === "mock_complete") {
+        // Wallet or mock payment completed instantly
         clearCart();
         const orderIdsParam = data.orderIds.join(",");
         window.location.href = `/checkout/success?orderIds=${orderIdsParam}`;
@@ -368,67 +471,106 @@ export default function CheckoutPage() {
                       <Smartphone className="h-4 w-4 text-primary-500" />
                       Pago con QR Bolivia
                     </div>
-                    {/* QR Code visualization */}
-                    <div className="relative flex items-center justify-center w-56 h-56 rounded-2xl bg-white border-2 border-surface-200 p-4">
-                      <div className="w-full h-full rounded-lg bg-surface-100 flex items-center justify-center">
-                        <div className="grid grid-cols-8 gap-0.5 p-4">
-                          {Array.from({ length: 64 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={cn(
-                                "w-3 h-3 rounded-[2px]",
-                                ((i * 7 + 3) % 3 === 0)
-                                  ? "bg-surface-800"
-                                  : "bg-white"
-                              )}
-                            />
-                          ))}
+                    {/* QR Code image */}
+                    <div className="flex items-center justify-center w-56 h-56 rounded-2xl bg-white border-2 border-surface-200 p-4">
+                      {paymentStatus === "expired" ? (
+                        <div className="w-full h-full rounded-lg bg-surface-100 flex items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <AlertCircle className="h-12 w-12 mx-auto text-red-400" />
+                            <p className="text-xs text-red-500 font-medium">
+                              QR expirado
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-white rounded-lg p-1.5 shadow-sm">
-                          <QrCode className="h-6 w-6 text-primary-600" />
+                      ) : qrState.qrDataUrl ? (
+                        <img
+                          src={qrState.qrDataUrl}
+                          alt="Codigo QR de pago"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-lg bg-surface-100 flex items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <QrCode className="h-12 w-12 mx-auto text-surface-300" />
+                            <p className="text-xs text-surface-400">
+                              QR no disponible
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
+
+                    {/* Status indicator */}
+                    {paymentStatus === "pending" && (
+                      <div className="flex items-center gap-2 text-sm text-surface-600">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600" />
+                        Esperando pago...
+                      </div>
+                    )}
+
+                    {/* Expiration timer */}
+                    {paymentStatus === "pending" && timeRemaining && (
+                      <p className="text-xs text-surface-400">
+                        Expira en:{" "}
+                        <span className="font-mono font-medium text-surface-600">
+                          {timeRemaining}
+                        </span>
+                      </p>
+                    )}
+
+                    {paymentStatus === "expired" && (
+                      <p className="text-sm text-red-600 font-medium">
+                        Este codigo QR ha expirado. Intenta nuevamente.
+                      </p>
+                    )}
+
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-surface-700">
                         Escanea el codigo QR con tu app bancaria
                       </p>
                       <p className="text-xs text-surface-500">
-                        Referencia: <span className="font-mono font-medium">{qrState.reference}</span>
+                        Referencia:{" "}
+                        <span className="font-mono font-medium">
+                          {qrState.reference}
+                        </span>
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-primary-600">
                       {formatCurrency(qrState.amount)}
                     </div>
-                    {/* Confirm QR payment button (sandbox) */}
-                    <button
-                      type="button"
-                      onClick={handleConfirmQrPayment}
-                      disabled={isConfirmingQr}
-                      className={cn(
-                        "flex items-center justify-center gap-2 rounded-lg bg-accent-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200",
-                        "hover:bg-accent-700 active:bg-accent-800",
-                        "disabled:opacity-50 disabled:pointer-events-none",
-                        "cursor-pointer"
-                      )}
-                    >
-                      {isConfirmingQr ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                          Verificando pago...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="h-4 w-4" />
-                          Confirmar pago realizado
-                        </>
-                      )}
-                    </button>
-                    <p className="text-xs text-surface-400">
-                      Modo sandbox: haz clic para simular la confirmacion del pago
-                    </p>
+
+                    {/* Manual confirm button — ONLY in sandbox mode */}
+                    {qrState.sandbox && paymentStatus === "pending" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleConfirmQrPayment}
+                          disabled={isConfirmingQr}
+                          className={cn(
+                            "flex items-center justify-center gap-2 rounded-lg bg-accent-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200",
+                            "hover:bg-accent-700 active:bg-accent-800",
+                            "disabled:opacity-50 disabled:pointer-events-none",
+                            "cursor-pointer"
+                          )}
+                        >
+                          {isConfirmingQr ? (
+                            <>
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                              Verificando pago...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-4 w-4" />
+                              Confirmar pago realizado
+                            </>
+                          )}
+                        </button>
+                        <p className="text-xs text-surface-400">
+                          Modo sandbox: haz clic para simular la confirmacion
+                          del pago
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -526,6 +668,45 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 )}
+
+                {!qrState && selectedPayment === "wallet" && (
+                  <div className="flex flex-col items-center text-center space-y-4 py-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
+                      <Wallet className="h-8 w-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-surface-700">
+                        Pagar con billetera
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Se descontara el monto total de tu saldo disponible.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-2xl font-bold text-accent-600">
+                        {formatCurrency(cartTotalAmount)}
+                      </div>
+                      <p className="text-xs text-surface-500">
+                        Saldo disponible:{" "}
+                        <span className="font-semibold text-surface-700">
+                          {formatCurrency(walletBalance)}
+                        </span>
+                      </p>
+                    </div>
+                    {walletBalance < cartTotalAmount && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                        <p className="text-xs text-amber-700">
+                          Saldo insuficiente. Necesitas{" "}
+                          <span className="font-semibold">
+                            {formatCurrency(cartTotalAmount - walletBalance)}
+                          </span>{" "}
+                          adicionales.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Security Badges */}
@@ -620,7 +801,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={handleConfirmPayment}
-                      disabled={isProcessing}
+                      disabled={isProcessing || (selectedPayment === "wallet" && walletBalance < cartTotalAmount)}
                       className={cn(
                         "mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-primary-600/25 transition-all duration-200",
                         "hover:bg-primary-700 active:bg-primary-800",

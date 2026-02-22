@@ -82,8 +82,38 @@ export interface CartItem {
 }
 
 export type OrderStatus = "pending" | "processing" | "completed" | "cancelled" | "refunded" | "under_review";
-export type PaymentMethod = "qr_bolivia" | "stripe" | "binance_pay" | "crypto";
+export type PaymentMethod = "qr_bolivia" | "stripe" | "binance_pay" | "crypto" | "wallet";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
+
+export type WalletTransactionType = "refund_credit" | "purchase_debit" | "admin_adjustment";
+export type RefundStatus = "pending" | "approved" | "rejected" | "processed";
+export type RefundType = "full" | "partial_prorated";
+
+export interface WalletTransaction {
+  id: string;
+  type: WalletTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string;
+  orderId?: string;
+  createdAt: string;
+}
+
+export interface RefundRequest {
+  id: string;
+  orderId: string;
+  refundType: RefundType;
+  originalAmount: number;
+  refundAmount: number;
+  reason?: string;
+  status: RefundStatus;
+  totalDays?: number;
+  usedDays?: number;
+  remainingDays?: number;
+  processedAt?: string;
+  createdAt: string;
+}
 
 export interface StreamingCredentials {
   email: string;

@@ -41,6 +41,7 @@ model User {
   avatar         String?
   role           UserRole  @default(BUYER)
   isActive       Boolean   @default(true)
+  walletBalance  Float     @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -57,6 +58,8 @@ model User {
   readAnnouncements AnnouncementRead[]
   chatsAsBuyer   ChatConversation[] @relation("BuyerChats")
   auditLogs      AuditLog[]
+  walletTransactions WalletTransaction[]
+  refundRequests     RefundRequest[]     @relation("BuyerRefunds")
 
   @@map("users")
 }
@@ -373,6 +376,25 @@ enum PaymentMethod {
   QR_BOLIVIA
   BINANCE_PAY
   CRYPTO
+  WALLET
+}
+
+enum WalletTransactionType {
+  REFUND_CREDIT
+  PURCHASE_DEBIT
+  ADMIN_ADJUSTMENT
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+enum RefundType {
+  FULL
+  PARTIAL_PRORATED
 }
 
 enum PaymentStatus {
@@ -402,6 +424,9 @@ model Order {
   requiresManualReview Boolean     @default(false)
   reviewedAt         DateTime?
   reviewedBy         String?
+  refundedAmount     Float?
+  walletAmountUsed   Float         @default(0)
+  deliveryScheduledAt DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   completedAt        DateTime?
@@ -411,6 +436,7 @@ model Order {
   items    OrderItem[]
   payment  Payment?
   tickets  Ticket[]
+  refundRequests RefundRequest[]
 
   @@index([buyerId])
   @@index([sellerId])
@@ -610,6 +636,9 @@ enum NotificationType {
   KYC_APPROVED
   KYC_REJECTED
   SYSTEM
+  REFUND_PROCESSED
+  WALLET_CREDITED
+  ORDER_DELAYED
 }
 
 model Notification {
@@ -740,6 +769,56 @@ model PlatformSettings {
   updatedAt                DateTime @updatedAt
 
   @@map("platform_settings")
+}
+
+// ============================================
+// WALLET & REFUNDS
+// ============================================
+
+model WalletTransaction {
+  id            String                @id @default(cuid())
+  userId        String
+  type          WalletTransactionType
+  amount        Float                 // positive = credit, negative = debit
+  balanceBefore Float
+  balanceAfter  Float
+  description   String
+  orderId       String?
+  refundId      String?
+  createdAt     DateTime              @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("wallet_transactions")
+}
+
+model RefundRequest {
+  id              String       @id @default(cuid())
+  orderId         String
+  buyerId         String
+  refundType      RefundType
+  originalAmount  Float
+  refundAmount    Float
+  reason          String?
+  status          RefundStatus @default(PENDING)
+  totalDays       Int?
+  usedDays        Int?
+  remainingDays   Int?
+  processedAt     DateTime?
+  processedBy     String?
+  rejectionReason String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+  buyer User  @relation("BuyerRefunds", fields: [buyerId], references: [id])
+
+  @@index([orderId])
+  @@index([buyerId])
+  @@index([status])
+  @@map("refund_requests")
 }
 
 // ============================================

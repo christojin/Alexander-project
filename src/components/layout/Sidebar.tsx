@@ -18,6 +18,7 @@ import {
   Plug,
   Settings,
   ShieldCheck,
+  ShieldAlert,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -29,6 +30,8 @@ import {
   Bell,
   ArrowRightLeft,
   KeyRound,
+  Wallet,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 import { logout } from "@/lib/auth-actions";
@@ -50,6 +53,7 @@ interface NavItem {
 const navigationByRole: Record<Role, NavItem[]> = {
   buyer: [
     { label: "Dashboard", href: "/buyer/dashboard", icon: LayoutDashboard },
+    { label: "Mi Billetera", href: "/buyer/wallet", icon: Wallet },
     { label: "Mis Compras", href: "/buyer/orders", icon: ShoppingBag },
     { label: "Tickets de Soporte", href: "/buyer/tickets", icon: TicketCheck },
   ],
@@ -73,6 +77,8 @@ const navigationByRole: Record<Role, NavItem[]> = {
     { label: "Notificaciones", href: "/admin/notifications", icon: Bell },
     { label: "Tasas de Cambio", href: "/admin/exchange-rates", icon: ArrowRightLeft },
     { label: "Codigos", href: "/admin/codes", icon: KeyRound },
+    { label: "Cola de Revision", href: "/admin/review-queue", icon: ShieldAlert },
+    { label: "Reembolsos", href: "/admin/refunds", icon: RotateCcw },
     { label: "Integraciones API", href: "/admin/api-integrations", icon: Plug },
     { label: "Configuracion", href: "/admin/settings", icon: Settings },
   ],
