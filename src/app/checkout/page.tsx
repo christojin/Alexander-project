@@ -169,7 +169,7 @@ export default function CheckoutPage() {
       ? [
           {
             id: "wallet" as PaymentMethod,
-            label: "Billetera VendorVault",
+            label: "Billetera VirtuMall",
             description: `Saldo disponible: ${formatCurrency(walletBalance)}`,
             icon: Wallet,
           },

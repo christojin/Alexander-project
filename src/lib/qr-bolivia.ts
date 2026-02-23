@@ -48,7 +48,7 @@ export async function createQrBoliviaOrder(params: {
       `Ref: ${reference}`,
       `Monto: $${params.amount.toFixed(2)} USD`,
       `Ordenes: ${params.orderIds.join(", ")}`,
-      `VendorVault - Pago QR Bolivia`,
+      `VirtuMall - Pago QR Bolivia`,
     ].join("\n");
 
     let qrImageUrl = "";
@@ -79,7 +79,7 @@ export async function createQrBoliviaOrder(params: {
   const body = {
     amount: params.amount,
     currency: params.currency ?? "BOB",
-    description: params.description ?? "VendorVault Purchase",
+    description: params.description ?? "VirtuMall Purchase",
     merchantOrderId,
     webhookUrl: `${appUrl}/api/webhooks/qr-bolivia`,
     expiresInMinutes: QR_EXPIRY_MINUTES,

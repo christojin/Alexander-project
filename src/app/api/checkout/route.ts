@@ -348,7 +348,7 @@ export async function POST(req: NextRequest) {
       const result = await createQrBoliviaOrder({
         amount: grandTotal,
         orderIds,
-        description: `VendorVault - ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
+        description: `VirtuMall - ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
       });
 
       if (!result.success) {
