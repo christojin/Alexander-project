@@ -26,6 +26,7 @@ import {
   Tag,
   Layers,
   Loader2,
+  ImageIcon,
 } from "lucide-react";
 
 const iconOptions = [
@@ -62,6 +63,7 @@ interface CategoryForm {
   slug: string;
   description: string;
   icon: string;
+  image: string;
   isActive: boolean;
 }
 
@@ -70,6 +72,7 @@ const emptyForm: CategoryForm = {
   slug: "",
   description: "",
   icon: "Tag",
+  image: "",
   isActive: true,
 };
 
@@ -128,6 +131,7 @@ export default function AdminCategoriesPage() {
           slug: form.slug || slugify(form.name),
           description: form.description,
           icon: form.icon,
+          image: form.image || null,
           isActive: form.isActive,
         }),
       });
@@ -152,6 +156,7 @@ export default function AdminCategoriesPage() {
           slug: form.slug || slugify(form.name),
           description: form.description,
           icon: form.icon,
+          image: form.image || null,
           isActive: form.isActive,
         }),
       });
@@ -187,6 +192,7 @@ export default function AdminCategoriesPage() {
       slug: cat.slug,
       description: cat.description,
       icon: cat.icon,
+      image: cat.image ?? "",
       isActive: cat.isActive,
     });
   };
@@ -329,6 +335,12 @@ export default function AdminCategoriesPage() {
                     {cat.isActive ? "Activa" : "Inactiva"}
                   </button>
                 </div>
+                {cat.image && (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                    <ImageIcon className="h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="truncate text-xs text-slate-500">{cat.image}</span>
+                  </div>
+                )}
                 <p className="mt-3 text-sm text-slate-600 line-clamp-2">
                   {cat.description}
                 </p>
@@ -429,6 +441,23 @@ export default function AdminCategoriesPage() {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   placeholder="Descripcion de la categoria"
                 />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Imagen (URL)
+                </label>
+                <input
+                  type="url"
+                  value={form.image}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, image: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="https://ejemplo.com/imagen.png"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Las categorias con imagen aparecen en &quot;Categorias populares&quot; del inicio
+                </p>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">

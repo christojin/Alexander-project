@@ -1,158 +1,124 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout";
-import { cn, generateId } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   Plug,
-  Plus,
-  X,
-  Eye,
-  EyeOff,
   CheckCircle2,
   XCircle,
-  Zap,
   Globe,
-  RefreshCw,
-  Trash2,
+  CreditCard,
+  QrCode,
+  Gamepad2,
   Loader2,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react";
 
-interface ApiProvider {
+interface EnvVar {
+  key: string;
+  set: boolean;
+}
+
+interface Integration {
   id: string;
   name: string;
   description: string;
-  supportedProducts: string;
-  status: "connected" | "disconnected";
-  apiKey: string;
-  apiUrl: string;
+  category: "payment" | "external";
+  configured: boolean;
+  envVars: EnvVar[];
+  webhookUrl?: string;
 }
 
-const initialProviders: ApiProvider[] = [
-  {
-    id: "api-1",
-    name: "GiftCardAPI Global",
-    description:
-      "Proveedor global de gift cards digitales con soporte para mas de 500 marcas en 50+ paises. Entrega instantanea mediante API REST.",
-    supportedProducts: "Netflix, Spotify, Amazon, Google Play, iTunes",
-    status: "connected",
-    apiKey: "gca_sk_live_4x8Km2pN9rW3vB7hQ",
-    apiUrl: "https://api.giftcardapi.com/v2",
-  },
-  {
-    id: "api-2",
-    name: "DigitalRiver",
-    description:
-      "Plataforma de comercio digital con inventario de codigos para gaming y entretenimiento. API robusta con webhooks.",
-    supportedProducts: "Steam, PlayStation, Xbox, Nintendo, Roblox",
-    status: "connected",
-    apiKey: "dr_prod_7yT2kM9pLx4wR6nB",
-    apiUrl: "https://api.digitalriver.com/v1",
-  },
-  {
-    id: "api-3",
-    name: "Reloadly",
-    description:
-      "API para recargas moviles y gift cards digitales. Especializado en mercados emergentes y Latinoamerica.",
-    supportedProducts: "Free Fire, PUBG Mobile, Recargas moviles, Tigo Money",
-    status: "disconnected",
-    apiKey: "",
-    apiUrl: "https://giftcards-sandbox.reloadly.com",
-  },
-];
+interface IntegrationsData {
+  integrations: Integration[];
+  summary: {
+    total: number;
+    configured: number;
+    unconfigured: number;
+  };
+}
+
+const iconMap: Record<string, typeof Globe> = {
+  stripe: CreditCard,
+  qr_bolivia: QrCode,
+  cryptomus: Globe,
+  binance: Globe,
+  vemper: Gamepad2,
+};
 
 export default function AdminApiIntegrationsPage() {
-  const [providers, setProviders] = useState<ApiProvider[]>(initialProviders);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
-  const [testingConnection, setTestingConnection] = useState<string | null>(
-    null
-  );
-  const [testResult, setTestResult] = useState<Record<string, "success" | "error" | null>>({});
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [data, setData] = useState<IntegrationsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showEnvVars, setShowEnvVars] = useState<Record<string, boolean>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const [newProvider, setNewProvider] = useState({
-    name: "",
-    description: "",
-    apiUrl: "",
-    apiKey: "",
-    supportedProducts: "",
-  });
+  const fetchIntegrations = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/integrations");
+      if (!res.ok) throw new Error("Error al cargar integraciones");
+      const json = await res.json();
+      setData(json);
+    } catch {
+      setError("No se pudieron cargar las integraciones");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const toggleConnection = (providerId: string) => {
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === providerId
-          ? {
-              ...p,
-              status:
-                p.status === "connected" ? "disconnected" : "connected",
-            }
-          : p
-      )
+  useEffect(() => {
+    fetchIntegrations();
+  }, []);
+
+  const handleCopy = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        </div>
+      </DashboardLayout>
     );
-    setTestResult((prev) => ({ ...prev, [providerId]: null }));
-  };
+  }
 
-  const handleTestConnection = (providerId: string) => {
-    setTestingConnection(providerId);
-    setTestResult((prev) => ({ ...prev, [providerId]: null }));
-    setTimeout(() => {
-      const provider = providers.find((p) => p.id === providerId);
-      const success = provider?.apiKey && provider.apiKey.length > 5;
-      setTestResult((prev) => ({
-        ...prev,
-        [providerId]: success ? "success" : "error",
-      }));
-      setTestingConnection(null);
-    }, 1500);
-  };
-
-  const handleAddProvider = () => {
-    const provider: ApiProvider = {
-      id: `api-${generateId()}`,
-      name: newProvider.name,
-      description: newProvider.description,
-      supportedProducts: newProvider.supportedProducts,
-      status: "disconnected",
-      apiKey: newProvider.apiKey,
-      apiUrl: newProvider.apiUrl,
-    };
-    setProviders((prev) => [...prev, provider]);
-    setShowAddModal(false);
-    setNewProvider({
-      name: "",
-      description: "",
-      apiUrl: "",
-      apiKey: "",
-      supportedProducts: "",
-    });
-  };
-
-  const handleUpdateApiKey = (providerId: string, key: string) => {
-    setProviders((prev) =>
-      prev.map((p) => (p.id === providerId ? { ...p, apiKey: key } : p))
+  if (error || !data) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <XCircle className="h-10 w-10 text-red-400 mb-3" />
+          <p className="text-sm text-surface-600">{error}</p>
+          <button
+            onClick={fetchIntegrations}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reintentar
+          </button>
+        </div>
+      </DashboardLayout>
     );
-  };
-
-  const handleDeleteProvider = (providerId: string) => {
-    setProviders((prev) => prev.filter((p) => p.id !== providerId));
-    setDeleteConfirm(null);
-  };
-
-  const toggleShowApiKey = (providerId: string) => {
-    setShowApiKey((prev) => ({ ...prev, [providerId]: !prev[providerId] }));
-  };
-
-  const maskApiKey = (key: string) => {
-    if (!key) return "";
-    if (key.length <= 8) return "*".repeat(key.length);
-    return key.slice(0, 4) + "*".repeat(key.length - 8) + key.slice(-4);
-  };
-
-  const connectedCount = providers.filter(
-    (p) => p.status === "connected"
-  ).length;
+  }
 
   return (
     <DashboardLayout role="admin">
@@ -160,397 +126,293 @@ export default function AdminApiIntegrationsPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">
+            <h1 className="text-3xl font-bold text-surface-900">
               Integraciones API
             </h1>
-            <p className="mt-1 text-slate-500">
-              Gestiona proveedores de gift cards y codigos digitales
+            <p className="mt-1 text-surface-500">
+              Estado de conexion de servicios externos y pasarelas de pago
             </p>
           </div>
           <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+            onClick={fetchIntegrations}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2.5 text-sm font-medium text-surface-700 shadow-sm transition-colors hover:bg-surface-50 cursor-pointer"
           >
-            <Plus className="h-4 w-4" />
-            Nueva integracion
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Actualizar estado
           </button>
         </div>
 
-        {/* Stats */}
+        {/* Summary Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 text-primary-600">
                 <Plug className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Total integraciones</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {providers.length}
+                <p className="text-sm text-surface-500">Total integraciones</p>
+                <p className="text-2xl font-bold text-surface-900">
+                  {data.summary.total}
                 </p>
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Conectadas</p>
+                <p className="text-sm text-surface-500">Configuradas</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {connectedCount}
+                  {data.summary.configured}
                 </p>
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-100 text-surface-600">
                 <XCircle className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Desconectadas</p>
-                <p className="text-2xl font-bold text-slate-600">
-                  {providers.length - connectedCount}
+                <p className="text-sm text-surface-500">Sin configurar</p>
+                <p className="text-2xl font-bold text-surface-600">
+                  {data.summary.unconfigured}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Provider Cards */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          {providers.map((provider) => (
-            <div
-              key={provider.id}
-              className={cn(
-                "rounded-xl border bg-white shadow-sm transition-all hover:shadow-md",
-                provider.status === "connected"
-                  ? "border-green-200"
-                  : "border-slate-200"
-              )}
-            >
-              {/* Card Header */}
-              <div className="border-b border-slate-100 p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "flex h-12 w-12 items-center justify-center rounded-xl",
-                        provider.status === "connected"
-                          ? "bg-green-100 text-green-600"
-                          : "bg-slate-100 text-slate-400"
-                      )}
-                    >
-                      <Globe className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">
-                        {provider.name}
-                      </h3>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 text-xs font-medium",
-                          provider.status === "connected"
-                            ? "text-green-600"
-                            : "text-slate-400"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full",
-                            provider.status === "connected"
-                              ? "bg-green-500"
-                              : "bg-slate-300"
-                          )}
-                        />
-                        {provider.status === "connected"
-                          ? "Conectado"
-                          : "Desconectado"}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleConnection(provider.id)}
-                    className={cn(
-                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                      provider.status === "connected"
-                        ? "bg-green-500"
-                        : "bg-slate-300"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-                        provider.status === "connected"
-                          ? "translate-x-6"
-                          : "translate-x-1"
-                      )}
-                    />
-                  </button>
-                </div>
-                <p className="mt-3 text-sm text-slate-600 line-clamp-2">
-                  {provider.description}
-                </p>
-              </div>
+        {/* Payment Integrations */}
+        <div>
+          <h2 className="text-lg font-semibold text-surface-900 mb-4">
+            Pasarelas de pago
+          </h2>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {data.integrations
+              .filter((i) => i.category === "payment")
+              .map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  showEnvVars={showEnvVars[integration.id] ?? false}
+                  onToggleEnvVars={() =>
+                    setShowEnvVars((prev) => ({
+                      ...prev,
+                      [integration.id]: !prev[integration.id],
+                    }))
+                  }
+                  copiedField={copiedField}
+                  onCopy={handleCopy}
+                />
+              ))}
+          </div>
+        </div>
 
-              {/* Card Body */}
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-500">
-                    Productos soportados
-                  </label>
-                  <div className="flex flex-wrap gap-1">
-                    {provider.supportedProducts
-                      .split(",")
-                      .map((product, i) => (
-                        <span
-                          key={i}
-                          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-                        >
-                          {product.trim()}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-500">
-                    API Key
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type={showApiKey[provider.id] ? "text" : "password"}
-                      value={
-                        showApiKey[provider.id]
-                          ? provider.apiKey
-                          : maskApiKey(provider.apiKey)
-                      }
-                      onChange={(e) =>
-                        handleUpdateApiKey(provider.id, e.target.value)
-                      }
-                      className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="Ingresa tu API key"
-                    />
-                    <button
-                      onClick={() => toggleShowApiKey(provider.id)}
-                      className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    >
-                      {showApiKey[provider.id] ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-slate-500">
-                    API URL
-                  </label>
-                  <p className="font-mono text-xs text-slate-500">
-                    {provider.apiUrl}
-                  </p>
-                </div>
-              </div>
+        {/* External API Integrations */}
+        <div>
+          <h2 className="text-lg font-semibold text-surface-900 mb-4">
+            APIs externas
+          </h2>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            {data.integrations
+              .filter((i) => i.category === "external")
+              .map((integration) => (
+                <IntegrationCard
+                  key={integration.id}
+                  integration={integration}
+                  showEnvVars={showEnvVars[integration.id] ?? false}
+                  onToggleEnvVars={() =>
+                    setShowEnvVars((prev) => ({
+                      ...prev,
+                      [integration.id]: !prev[integration.id],
+                    }))
+                  }
+                  copiedField={copiedField}
+                  onCopy={handleCopy}
+                />
+              ))}
+          </div>
+        </div>
 
-              {/* Card Footer */}
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleTestConnection(provider.id)}
-                    disabled={testingConnection === provider.id}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
-                      testResult[provider.id] === "success"
-                        ? "bg-green-100 text-green-700"
-                        : testResult[provider.id] === "error"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-                    )}
-                  >
-                    {testingConnection === provider.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : testResult[provider.id] === "success" ? (
-                      <CheckCircle2 className="h-3 w-3" />
-                    ) : testResult[provider.id] === "error" ? (
-                      <XCircle className="h-3 w-3" />
-                    ) : (
-                      <Zap className="h-3 w-3" />
-                    )}
-                    {testingConnection === provider.id
-                      ? "Probando..."
-                      : testResult[provider.id] === "success"
-                      ? "Conexion exitosa"
-                      : testResult[provider.id] === "error"
-                      ? "Error de conexion"
-                      : "Probar conexion"}
-                  </button>
-                </div>
-                <button
-                  onClick={() => setDeleteConfirm(provider.id)}
-                  className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        {/* Info note */}
+        <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+          <p className="text-xs text-surface-500 leading-relaxed">
+            Las integraciones se configuran mediante variables de entorno en el
+            servidor. Los servicios no configurados operan en modo sandbox
+            (demo) automaticamente. Consulta el archivo{" "}
+            <code className="rounded bg-surface-200 px-1 py-0.5 text-surface-700">
+              .env.example
+            </code>{" "}
+            para ver las variables requeridas por cada integracion.
+          </p>
         </div>
       </div>
-
-      {/* Add Integration Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Nueva integracion
-              </h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Nombre del proveedor
-                </label>
-                <input
-                  type="text"
-                  value={newProvider.name}
-                  onChange={(e) =>
-                    setNewProvider((prev) => ({
-                      ...prev,
-                      name: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="Nombre del proveedor"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Descripcion
-                </label>
-                <textarea
-                  value={newProvider.description}
-                  onChange={(e) =>
-                    setNewProvider((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="Descripcion del servicio"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  API URL
-                </label>
-                <input
-                  type="url"
-                  value={newProvider.apiUrl}
-                  onChange={(e) =>
-                    setNewProvider((prev) => ({
-                      ...prev,
-                      apiUrl: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="https://api.ejemplo.com/v1"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  API Key
-                </label>
-                <input
-                  type="text"
-                  value={newProvider.apiKey}
-                  onChange={(e) =>
-                    setNewProvider((prev) => ({
-                      ...prev,
-                      apiKey: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="sk_live_..."
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Productos soportados
-                </label>
-                <input
-                  type="text"
-                  value={newProvider.supportedProducts}
-                  onChange={(e) =>
-                    setNewProvider((prev) => ({
-                      ...prev,
-                      supportedProducts: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="Netflix, Spotify, Amazon (separados por coma)"
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleAddProvider}
-                disabled={!newProvider.name || !newProvider.apiUrl}
-                className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Agregar integracion
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <Trash2 className="h-6 w-6 text-red-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900">
-              Eliminar integracion
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Esta seguro de que desea eliminar esta integracion? Los productos
-              asociados dejaran de funcionar con este proveedor.
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleDeleteProvider(deleteConfirm)}
-                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
+  );
+}
+
+function IntegrationCard({
+  integration,
+  showEnvVars,
+  onToggleEnvVars,
+  copiedField,
+  onCopy,
+}: {
+  integration: Integration;
+  showEnvVars: boolean;
+  onToggleEnvVars: () => void;
+  copiedField: string | null;
+  onCopy: (text: string, field: string) => void;
+}) {
+  const Icon = iconMap[integration.id] ?? Globe;
+  const allSet = integration.envVars.every((v) => v.set);
+  const someSet = integration.envVars.some((v) => v.set);
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border bg-white shadow-sm transition-all",
+        integration.configured ? "border-green-200" : "border-surface-200"
+      )}
+    >
+      {/* Header */}
+      <div className="border-b border-surface-100 p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-xl",
+                integration.configured
+                  ? "bg-green-100 text-green-600"
+                  : "bg-surface-100 text-surface-400"
+              )}
+            >
+              <Icon className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-surface-900">
+                {integration.name}
+              </h3>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-xs font-medium",
+                  integration.configured ? "text-green-600" : "text-surface-400"
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    integration.configured ? "bg-green-500" : "bg-surface-300"
+                  )}
+                />
+                {integration.configured ? "Configurado" : "Sin configurar (modo sandbox)"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 text-sm text-surface-600 leading-relaxed">
+          {integration.description}
+        </p>
+      </div>
+
+      {/* Body */}
+      <div className="p-5 space-y-4">
+        {/* Environment Variables */}
+        <div>
+          <button
+            type="button"
+            onClick={onToggleEnvVars}
+            className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-surface-500 hover:text-surface-700 transition-colors cursor-pointer"
+          >
+            {showEnvVars ? (
+              <EyeOff className="h-3.5 w-3.5" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+            Variables de entorno ({integration.envVars.filter((v) => v.set).length}/{integration.envVars.length})
+          </button>
+          {showEnvVars && (
+            <div className="mt-2 space-y-1.5">
+              {integration.envVars.map((envVar) => (
+                <div
+                  key={envVar.key}
+                  className="flex items-center gap-2 rounded-lg bg-surface-50 px-3 py-2"
+                >
+                  {envVar.set ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+                  )}
+                  <code className="flex-1 text-xs font-mono text-surface-700">
+                    {envVar.key}
+                  </code>
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      envVar.set ? "text-green-600" : "text-red-500"
+                    )}
+                  >
+                    {envVar.set ? "OK" : "Falta"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Webhook URL */}
+        {integration.webhookUrl && (
+          <div>
+            <p className="mb-1 text-xs font-medium uppercase tracking-wider text-surface-500">
+              URL de webhook
+            </p>
+            <div className="flex items-center gap-2 rounded-lg bg-surface-50 border border-surface-200 px-3 py-2">
+              <code className="flex-1 text-xs font-mono text-surface-700 break-all">
+                {integration.webhookUrl}
+              </code>
+              <button
+                type="button"
+                onClick={() =>
+                  onCopy(integration.webhookUrl!, `webhook-${integration.id}`)
+                }
+                className="shrink-0 rounded p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 transition-colors cursor-pointer"
+              >
+                {copiedField === `webhook-${integration.id}` ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer status bar */}
+      <div className="border-t border-surface-100 px-5 py-3">
+        <div className="flex items-center gap-2">
+          {allSet ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-600">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Todas las variables configuradas
+            </span>
+          ) : someSet ? (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+              <XCircle className="h-3.5 w-3.5" />
+              Configuracion incompleta
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-surface-400">
+              <XCircle className="h-3.5 w-3.5" />
+              No configurado — funciona en modo demo
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

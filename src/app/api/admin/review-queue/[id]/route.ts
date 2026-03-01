@@ -75,6 +75,7 @@ export async function PATCH(
             sellerEarnings: order.sellerEarnings,
             requiresManualReview: false,
             paymentStatus: order.paymentStatus,
+            totalAmount: order.totalAmount,
             items: order.items.map((item) => ({
               id: item.id,
               productId: item.productId,
@@ -82,6 +83,8 @@ export async function PATCH(
               productType: item.productType,
               deliveryType: item.deliveryType,
               quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
             })),
           },
           order.buyerId,

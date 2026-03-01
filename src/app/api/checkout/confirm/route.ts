@@ -3,12 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fulfillOrder } from "@/lib/order-fulfillment";
 import { verifyQrBoliviaPayment, isQrBoliviaConfigured } from "@/lib/qr-bolivia";
+import { verifyBinanceDeposit, isBinanceVerifyConfigured } from "@/lib/binance-verify";
 
 /**
  * POST /api/checkout/confirm
  *
- * Confirm payment for QR Bolivia.
- * When provider is configured, verifies payment with the provider before fulfilling.
+ * Confirm payment for QR Bolivia or Binance transfer.
+ * When provider is configured, verifies payment before fulfilling.
  * When not configured (sandbox), allows manual confirmation.
  *
  * Body: { orderIds: string[], reference: string }
@@ -45,7 +46,12 @@ export async function POST(req: NextRequest) {
       },
       include: {
         items: true,
-        payment: { select: { externalPaymentId: true } },
+        payment: {
+          select: {
+            externalPaymentId: true,
+            paymentDetails: true,
+          },
+        },
       },
     });
 
@@ -56,8 +62,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify payment with provider if configured
-    if (isQrBoliviaConfigured()) {
+    // Determine payment provider
+    const paymentDetails = orders[0]?.payment?.paymentDetails as Record<string, unknown> | null;
+    const provider = paymentDetails?.provider as string | undefined;
+
+    // ── Binance transfer verification ─────────────────────
+    if (provider === "binance_transfer") {
+      if (isBinanceVerifyConfigured()) {
+        const memoCode = paymentDetails?.memoCode as string;
+        const expectedAmount = paymentDetails?.expectedAmount as number;
+        const coin = (paymentDetails?.coin as string) ?? "USDT";
+
+        if (memoCode && expectedAmount) {
+          const verification = await verifyBinanceDeposit(memoCode, expectedAmount, coin);
+          if (!verification.verified) {
+            return NextResponse.json(
+              { error: "El deposito aun no ha sido detectado. Verifica que hayas incluido el codigo memo correcto y el monto exacto." },
+              { status: 400 }
+            );
+          }
+        }
+      }
+      // If not configured (sandbox), skip verification — allow manual confirmation
+    }
+
+    // ── QR Bolivia verification ───────────────────────────
+    else if (isQrBoliviaConfigured()) {
       const externalId = orders[0]?.payment?.externalPaymentId;
       if (externalId) {
         const verification = await verifyQrBoliviaPayment(externalId);

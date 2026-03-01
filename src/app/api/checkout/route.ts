@@ -5,12 +5,14 @@ import { stripe, isStripeConfigured } from "@/lib/stripe";
 import { generateOrderNumber, toPaymentMethodEnum } from "@/lib/order-utils";
 import { debitWallet } from "@/lib/wallet";
 import { assessFraudRisk, scheduleDelayedDelivery } from "@/lib/fraud";
-import { createBinancePayOrder, isBinancePayConfigured } from "@/lib/binance-pay";
+import { generateMemoCode, getBinanceDepositInfo, isBinanceVerifyConfigured } from "@/lib/binance-verify";
 import { createQrBoliviaOrder } from "@/lib/qr-bolivia";
+import { isCryptomusConfigured, createCryptomusInvoice } from "@/lib/cryptomus";
 
 interface CheckoutItem {
   productId: string;
   quantity: number;
+  vemperFields?: Record<string, string>;
 }
 
 /**
@@ -25,7 +27,7 @@ interface CheckoutItem {
  *   - stripe:      { type: "redirect", url, orderIds }
  *   - qr_bolivia:  { type: "qr", reference, qrDataUrl, amount, orderIds }
  *   - binance_pay: { type: "redirect", url, orderIds }
- *   - crypto:      { type: "mock_complete", orderIds }
+ *   - crypto:      { type: "crypto_redirect", paymentUrl, orderIds } (or mock_complete if unconfigured)
  *   - wallet:      { type: "wallet_complete", orderIds }
  */
 export async function POST(req: NextRequest) {
@@ -89,6 +91,8 @@ export async function POST(req: NextRequest) {
     // Validate stock for instant-delivery products
     for (const item of items) {
       const product = productMap.get(item.productId)!;
+      // Skip stock check for Vemper-sourced products (inventory is external)
+      if (product.vemperProductId) continue;
       if (product.deliveryType === "INSTANT") {
         // Count available codes/accounts
         const availableGiftCards = await prisma.giftCardCode.count({
@@ -196,6 +200,32 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+
+      // Pre-create VemperOrder records for Vemper-sourced items
+      for (const i of group.items) {
+        if (i.product.vemperProductId) {
+          const vp = await prisma.vemperProduct.findUnique({
+            where: { id: i.product.vemperProductId },
+          });
+          if (vp) {
+            const cartItem = items.find((ci) => ci.productId === i.product.id);
+            await prisma.vemperOrder.create({
+              data: {
+                vemperProductId: vp.id,
+                orderId: order.id,
+                buyerId: session.user.id,
+                costPrice: vp.costPrice * i.quantity,
+                salePrice: i.product.price * i.quantity,
+                profit:
+                  (i.product.price - vp.costPrice) * i.quantity,
+                denomination: i.product.price,
+                topUpData: cartItem?.vemperFields ?? undefined,
+                status: "pending",
+              },
+            });
+          }
+        }
+      }
 
       createdOrders.push({
         id: order.id,
@@ -384,64 +414,89 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- BINANCE PAY ---
+    // --- BINANCE (manual transfer verification) ---
     if (paymentMethod === "binance_pay") {
-      if (!isBinancePayConfigured()) {
-        // Mock mode: auto-complete
-        await completeOrders(orderIds, session.user.id, "mock_binance_" + Date.now());
-        return NextResponse.json({
-          type: "mock_complete",
-          orderIds,
-          message: "Binance Pay no configurado. Pedido completado en modo demo.",
-        });
-      }
+      const memoCode = generateMemoCode();
+      const depositInfo = getBinanceDepositInfo();
+      const sandbox = !isBinanceVerifyConfigured();
+      const expiryMinutes = parseInt(process.env.BINANCE_DEPOSIT_EXPIRY_MINUTES ?? "30", 10);
+      const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000).toISOString();
 
-      const result = await createBinancePayOrder({
-        amount: grandTotal,
-        orderIds,
-        description: `VirtuMall - ${createdOrders.map((o) => o.orderNumber).join(", ")}`,
-      });
-
-      if (!result.success || !result.checkoutUrl) {
-        // Fallback to mock mode
-        await completeOrders(orderIds, session.user.id, "mock_binance_" + Date.now());
-        return NextResponse.json({
-          type: "mock_complete",
-          orderIds,
-          message: result.error ?? "Error con Binance Pay. Pedido completado en modo demo.",
-        });
-      }
-
-      // Store Binance trade number in payment records
+      // Store memo code and deposit details in payment records
       for (const orderId of orderIds) {
         await prisma.payment.update({
           where: { orderId },
           data: {
-            externalPaymentId: result.merchantTradeNo,
+            externalPaymentId: memoCode,
             paymentDetails: {
-              provider: "binance_pay",
-              prepayId: result.prepayId,
-              checkoutUrl: result.checkoutUrl,
+              provider: "binance_transfer",
+              memoCode,
+              depositAddress: depositInfo.address,
+              coin: depositInfo.coin,
+              network: depositInfo.network,
+              expectedAmount: grandTotal,
+              expiresAt,
+              sandbox,
             },
           },
         });
       }
 
       return NextResponse.json({
-        type: "redirect",
-        url: result.checkoutUrl,
+        type: "binance_deposit",
+        depositAddress: depositInfo.address,
+        coin: depositInfo.coin,
+        network: depositInfo.network,
+        memoCode,
+        amount: grandTotal,
         orderIds,
+        expiresAt,
+        sandbox,
       });
     }
 
-    // --- CRYPTO (mock) ---
+    // --- CRYPTO (Cryptomus) ---
     if (paymentMethod === "crypto") {
-      // Mock: auto-complete
-      await completeOrders(orderIds, session.user.id, "mock_crypto_" + Date.now());
-      return NextResponse.json({
-        type: "mock_complete",
+      if (!isCryptomusConfigured()) {
+        // Sandbox mode: auto-complete
+        await completeOrders(orderIds, session.user.id, "mock_crypto_" + Date.now());
+        return NextResponse.json({
+          type: "mock_complete",
+          orderIds,
+          message: "Cryptomus no configurado. Pedido completado en modo demo.",
+        });
+      }
+
+      const invoiceResult = await createCryptomusInvoice({
+        amount: grandTotal,
         orderIds,
-        message: "Crypto en modo demo. Pedido completado.",
+      });
+
+      if (!invoiceResult.success || !invoiceResult.paymentUrl) {
+        return NextResponse.json(
+          { error: invoiceResult.error ?? "Error al crear factura de criptomonedas" },
+          { status: 500 }
+        );
+      }
+
+      // Store Cryptomus invoice ID in payment records
+      for (const orderId of orderIds) {
+        await prisma.payment.update({
+          where: { orderId },
+          data: {
+            externalPaymentId: invoiceResult.invoiceId,
+            paymentDetails: {
+              provider: "cryptomus",
+              invoiceId: invoiceResult.invoiceId,
+            },
+          },
+        });
+      }
+
+      return NextResponse.json({
+        type: "crypto_redirect",
+        paymentUrl: invoiceResult.paymentUrl,
+        orderIds,
       });
     }
 
@@ -475,6 +530,7 @@ async function completeOrders(
         id: order.id,
         sellerId: order.sellerId,
         orderNumber: order.orderNumber,
+        totalAmount: order.totalAmount,
         sellerEarnings: order.sellerEarnings,
         requiresManualReview: order.requiresManualReview,
         paymentStatus: order.paymentStatus,
@@ -485,6 +541,8 @@ async function completeOrders(
           productType: item.productType,
           deliveryType: item.deliveryType,
           quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
         })),
       },
       buyerId,

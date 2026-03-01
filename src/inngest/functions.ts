@@ -1,6 +1,8 @@
 import { inngest } from "./client";
 import { processDelayedDeliveries } from "@/lib/fraud";
 
+export { verifyPendingBinancePaymentsCron } from "./binance-verify";
+
 /**
  * Cron: Process delayed deliveries every 5 minutes.
  *

@@ -59,6 +59,7 @@ model User {
   chatsAsBuyer   ChatConversation[] @relation("BuyerChats")
   auditLogs      AuditLog[]
   walletTransactions WalletTransaction[]
+  walletDeposits     WalletDeposit[]
   refundRequests     RefundRequest[]     @relation("BuyerRefunds")
 
   @@map("users")
@@ -265,11 +266,13 @@ model Product {
   categoryId      String
   brandId         String?
   regionId        String?
+  vemperProductId String?
 
-  seller          SellerProfile @relation(fields: [sellerId], references: [id])
-  category        Category      @relation(fields: [categoryId], references: [id])
-  brand           Brand?        @relation(fields: [brandId], references: [id])
-  region          Region?       @relation(fields: [regionId], references: [id])
+  seller          SellerProfile  @relation(fields: [sellerId], references: [id])
+  category        Category       @relation(fields: [categoryId], references: [id])
+  brand           Brand?         @relation(fields: [brandId], references: [id])
+  region          Region?        @relation(fields: [regionId], references: [id])
+  vemperProduct   VemperProduct? @relation(fields: [vemperProductId], references: [id])
 
   giftCardCodes     GiftCardCode[]
   streamingAccounts StreamingAccount[]
@@ -383,6 +386,7 @@ enum WalletTransactionType {
   REFUND_CREDIT
   PURCHASE_DEBIT
   ADMIN_ADJUSTMENT
+  DEPOSIT_CREDIT
 }
 
 enum RefundStatus {
@@ -509,6 +513,7 @@ model VemperProduct {
   updatedAt       DateTime         @updatedAt
 
   vemperOrders VemperOrder[]
+  products     Product[]
 
   @@map("vemper_products")
 }
@@ -774,6 +779,30 @@ model PlatformSettings {
 // ============================================
 // WALLET & REFUNDS
 // ============================================
+
+model WalletDeposit {
+  id             String        @id @default(cuid())
+  userId         String
+  amount         Float
+  coin           String        @default("USDT")
+  network        String        @default("TRC20")
+  depositAddress String
+  memoCode       String        @unique
+  status         PaymentStatus @default(PENDING)
+  sandbox        Boolean       @default(false)
+  txId           String?
+  actualAmount   Float?
+  verifiedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("wallet_deposits")
+}
 
 model WalletTransaction {
   id            String                @id @default(cuid())

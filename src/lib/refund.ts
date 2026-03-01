@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { creditWallet } from "@/lib/wallet";
+import { sendRefundProcessedEmail } from "@/lib/email";
 
 interface RefundCalculation {
   refundAmount: number;
@@ -181,7 +182,7 @@ export async function processRefund(params: {
   });
 
   // Credit buyer wallet
-  await creditWallet({
+  const walletResult = await creditWallet({
     userId: buyerId,
     amount: totalRefund,
     type: "REFUND_CREDIT",
@@ -189,6 +190,41 @@ export async function processRefund(params: {
     orderId,
     refundId: refundRequest.id,
   });
+
+  // ── Notifications & email ──────────────────────────────────────
+  const buyerUser = await prisma.user.findUnique({
+    where: { id: buyerId },
+    select: { email: true },
+  });
+
+  await prisma.notification.create({
+    data: {
+      userId: buyerId,
+      type: "REFUND_PROCESSED",
+      title: "Reembolso procesado",
+      message: `Se ha procesado un reembolso de $${totalRefund.toFixed(2)} para la orden #${order.orderNumber}.`,
+      link: "/buyer/wallet",
+    },
+  });
+
+  await prisma.notification.create({
+    data: {
+      userId: buyerId,
+      type: "WALLET_CREDITED",
+      title: "Billetera acreditada",
+      message: `$${totalRefund.toFixed(2)} acreditados a tu billetera por reembolso de orden #${order.orderNumber}.`,
+      link: "/buyer/wallet",
+    },
+  });
+
+  if (buyerUser?.email && walletResult.success) {
+    sendRefundProcessedEmail(
+      buyerUser.email,
+      order.orderNumber,
+      totalRefund,
+      walletResult.newBalance
+    ).catch(() => {});
+  }
 
   // Deduct from seller earnings
   const sellerRefundPortion = totalRefund * (1 - order.commissionRate / 100);

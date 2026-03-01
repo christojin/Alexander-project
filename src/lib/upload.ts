@@ -9,7 +9,7 @@ const ALLOWED_TYPES = [
   "application/pdf",
 ];
 
-const ALLOWED_FOLDERS = ["kyc", "avatars", "stores"] as const;
+const ALLOWED_FOLDERS = ["kyc", "avatars", "stores", "chat"] as const;
 type UploadFolder = (typeof ALLOWED_FOLDERS)[number];
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB

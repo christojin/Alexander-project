@@ -34,7 +34,6 @@ const linkGroups: FooterLinkGroup[] = [
     links: [
       { label: "Inicio", href: "/" },
       { label: "Productos", href: "/products" },
-      { label: "Ofertas", href: "/ofertas" },
       { label: "Iniciar Sesion", href: "/auth/login" },
       { label: "Registrarse", href: "/auth/register" },
     ],

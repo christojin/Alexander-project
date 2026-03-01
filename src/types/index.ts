@@ -27,6 +27,7 @@ export interface Category {
   slug: string;
   description: string;
   icon: string;
+  image?: string;
   productCount: number;
   isActive: boolean;
 }
@@ -197,4 +198,30 @@ export interface AdminSettings {
   deliveryDelayMinutes: number;
   highValueThreshold: number;
   requireManualReviewAbove: number;
+}
+
+// ── Chat types ──────────────────────────────────────────────
+
+export interface ChatConversationSummary {
+  id: string;
+  otherPartyName: string;
+  otherPartyAvatar?: string;
+  productName?: string;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ChatMsg {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: "buyer" | "seller";
+  content: string;
+  imageUrl?: string;
+  isRead: boolean;
+  createdAt: string;
 }

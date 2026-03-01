@@ -17,6 +17,8 @@ import {
   Globe,
   AlertCircle,
   Wallet,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Header, Footer } from "@/components/layout";
 import { useApp } from "@/context/AppContext";
@@ -53,8 +55,8 @@ const basePaymentOptions: PaymentOption[] = [
   },
   {
     id: "binance_pay",
-    label: "Binance Pay",
-    description: "Paga con tu cuenta de Binance",
+    label: "Transferencia Binance",
+    description: "Envia USDT desde tu cuenta de Binance",
     icon: Globe,
   },
   {
@@ -72,6 +74,38 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Vemper required fields per product (e.g., player_id)
+  const [vemperFields, setVemperFields] = useState<
+    Record<string, Record<string, string>>
+  >({});
+  const [productRequiredFields, setProductRequiredFields] = useState<
+    Record<string, string[]>
+  >({});
+
+  // Fetch required fields for products in cart
+  useEffect(() => {
+    async function fetchVemperRequiredFields() {
+      for (const { product } of cartItems) {
+        try {
+          const res = await fetch(`/api/products/${product.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            const fields = data.product?.vemperProduct?.requiredFields;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+              setProductRequiredFields((prev) => ({
+                ...prev,
+                [product.id]: fields,
+              }));
+            }
+          }
+        } catch {
+          // Silently fail
+        }
+      }
+    }
+    if (cartItems.length > 0) fetchVemperRequiredFields();
+  }, [cartItems]);
+
   // Wallet state
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [walletLoading, setWalletLoading] = useState(true);
@@ -85,9 +119,23 @@ export default function CheckoutPage() {
     expiresAt?: string;
     sandbox?: boolean;
   } | null>(null);
+
+  // Binance deposit state
+  const [binanceState, setBinanceState] = useState<{
+    depositAddress: string;
+    coin: string;
+    network: string;
+    memoCode: string;
+    amount: number;
+    orderIds: string[];
+    expiresAt?: string;
+    sandbox?: boolean;
+  } | null>(null);
+
   const [isConfirmingQr, setIsConfirmingQr] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "completed" | "expired">("pending");
   const [timeRemaining, setTimeRemaining] = useState<string>("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Fetch wallet balance on mount
   useEffect(() => {
@@ -107,16 +155,17 @@ export default function CheckoutPage() {
     fetchWalletBalance();
   }, []);
 
-  // Poll for payment status when QR is active
+  // Poll for payment status when QR or Binance deposit is active
   useEffect(() => {
-    if (!qrState || paymentStatus !== "pending") return;
+    const activeOrderIds = qrState?.orderIds ?? binanceState?.orderIds;
+    if (!activeOrderIds || paymentStatus !== "pending") return;
 
     const pollInterval = setInterval(async () => {
       try {
         const res = await fetch("/api/checkout/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderIds: qrState.orderIds }),
+          body: JSON.stringify({ orderIds: activeOrderIds }),
         });
 
         if (res.ok) {
@@ -124,7 +173,7 @@ export default function CheckoutPage() {
           if (data.status === "completed") {
             setPaymentStatus("completed");
             clearCart();
-            const orderIdsParam = qrState.orderIds.join(",");
+            const orderIdsParam = activeOrderIds.join(",");
             window.location.href = `/checkout/success?orderIds=${orderIdsParam}`;
           } else if (data.status === "expired") {
             setPaymentStatus("expired");
@@ -136,15 +185,16 @@ export default function CheckoutPage() {
     }, 5000);
 
     return () => clearInterval(pollInterval);
-  }, [qrState, paymentStatus, clearCart]);
+  }, [qrState, binanceState, paymentStatus, clearCart]);
 
-  // QR expiration countdown timer
+  // Expiration countdown timer (QR Bolivia or Binance deposit)
   useEffect(() => {
-    if (!qrState?.expiresAt) return;
+    const activeExpiresAt = qrState?.expiresAt ?? binanceState?.expiresAt;
+    if (!activeExpiresAt) return;
 
     const updateTimer = () => {
       const now = Date.now();
-      const expiresAt = new Date(qrState.expiresAt!).getTime();
+      const expiresAt = new Date(activeExpiresAt).getTime();
       const diff = expiresAt - now;
 
       if (diff <= 0) {
@@ -161,7 +211,7 @@ export default function CheckoutPage() {
     updateTimer();
     const timerInterval = setInterval(updateTimer, 1000);
     return () => clearInterval(timerInterval);
-  }, [qrState?.expiresAt]);
+  }, [qrState?.expiresAt, binanceState?.expiresAt]);
 
   // Build payment options dynamically (wallet shown if balance > 0)
   const paymentOptions: PaymentOption[] = [
@@ -192,6 +242,10 @@ export default function CheckoutPage() {
           items: cartItems.map(({ product, quantity }) => ({
             productId: product.id,
             quantity,
+            ...(vemperFields[product.id] &&
+              Object.keys(vemperFields[product.id]).length > 0 && {
+                vemperFields: vemperFields[product.id],
+              }),
           })),
           paymentMethod: selectedPayment,
         }),
@@ -225,6 +279,30 @@ export default function CheckoutPage() {
         });
         setPaymentStatus("pending");
         setIsProcessing(false);
+        return;
+      }
+
+      if (data.type === "binance_deposit") {
+        // Binance transfer: show deposit instructions and wait
+        setBinanceState({
+          depositAddress: data.depositAddress,
+          coin: data.coin,
+          network: data.network,
+          memoCode: data.memoCode,
+          amount: data.amount,
+          orderIds: data.orderIds,
+          expiresAt: data.expiresAt,
+          sandbox: data.sandbox,
+        });
+        setPaymentStatus("pending");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (data.type === "crypto_redirect" && data.paymentUrl) {
+        // Cryptomus: redirect to payment gateway
+        clearCart();
+        window.location.href = data.paymentUrl;
         return;
       }
 
@@ -276,7 +354,54 @@ export default function CheckoutPage() {
     }
   };
 
-  if (cartItems.length === 0 && !qrState) {
+  const handleConfirmBinancePayment = async () => {
+    if (!binanceState) return;
+    setIsConfirmingQr(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/checkout/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderIds: binanceState.orderIds,
+          reference: binanceState.memoCode,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Error al confirmar el pago");
+        setIsConfirmingQr(false);
+        return;
+      }
+
+      clearCart();
+      const orderIdsParam = binanceState.orderIds.join(",");
+      window.location.href = `/checkout/success?orderIds=${orderIdsParam}`;
+    } catch {
+      setError("Error de conexion. Intenta nuevamente.");
+      setIsConfirmingQr(false);
+    }
+  };
+
+  const handleCopyToClipboard = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  if (cartItems.length === 0 && !qrState && !binanceState) {
     return (
       <>
         <Header />
@@ -391,7 +516,7 @@ export default function CheckoutPage() {
               </Link>
 
               {/* Payment Method Selection */}
-              {!qrState && (
+              {!qrState && !binanceState && (
                 <div>
                   <h2 className="text-lg font-bold text-surface-900 mb-4">
                     Metodo de pago
@@ -464,8 +589,138 @@ export default function CheckoutPage() {
 
               {/* Payment Details based on selection */}
               <div className="rounded-xl border border-surface-200 bg-white p-6 shadow-sm">
+                {/* Binance Transfer — waiting for deposit */}
+                {binanceState && (
+                  <div className="flex flex-col items-center text-center space-y-5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-surface-700">
+                      <Globe className="h-4 w-4 text-amber-500" />
+                      Transferencia Binance
+                    </div>
+
+                    {paymentStatus === "expired" ? (
+                      <div className="w-full rounded-xl bg-red-50 border border-red-200 p-6">
+                        <AlertCircle className="h-10 w-10 mx-auto text-red-400 mb-3" />
+                        <p className="text-sm text-red-600 font-medium">
+                          Esta solicitud de pago ha expirado. Intenta nuevamente.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Deposit Address */}
+                        <div className="w-full rounded-xl bg-surface-50 border border-surface-200 p-4 space-y-1">
+                          <p className="text-xs text-surface-500 font-medium">Direccion de deposito ({binanceState.network})</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 text-sm font-mono text-surface-800 break-all leading-relaxed">
+                              {binanceState.depositAddress}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyToClipboard(binanceState.depositAddress, "address")}
+                              className="shrink-0 flex items-center gap-1 rounded-lg bg-surface-200 px-2.5 py-1.5 text-xs font-medium text-surface-600 hover:bg-surface-300 transition-colors cursor-pointer"
+                            >
+                              {copiedField === "address" ? <Check className="h-3.5 w-3.5 text-accent-600" /> : <Copy className="h-3.5 w-3.5" />}
+                              {copiedField === "address" ? "Copiado" : "Copiar"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Memo Code — CRITICAL */}
+                        <div className="w-full rounded-xl bg-amber-50 border-2 border-amber-300 p-4 space-y-1">
+                          <p className="text-xs text-amber-700 font-bold uppercase tracking-wider">Codigo Memo (OBLIGATORIO)</p>
+                          <div className="flex items-center justify-center gap-3">
+                            <code className="text-2xl font-mono font-bold text-amber-800 tracking-widest">
+                              {binanceState.memoCode}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyToClipboard(binanceState.memoCode, "memo")}
+                              className="shrink-0 flex items-center gap-1 rounded-lg bg-amber-200 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-300 transition-colors cursor-pointer"
+                            >
+                              {copiedField === "memo" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                              {copiedField === "memo" ? "Copiado" : "Copiar"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Amount */}
+                        <div className="w-full rounded-xl bg-surface-50 border border-surface-200 p-4">
+                          <p className="text-xs text-surface-500 font-medium mb-1">Monto exacto a enviar</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-3xl font-bold text-primary-600">
+                              {binanceState.amount.toFixed(2)}
+                            </span>
+                            <span className="text-lg font-semibold text-primary-500">
+                              {binanceState.coin}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Warning */}
+                        <div className="w-full flex items-start gap-2.5 rounded-xl bg-red-50 border border-red-200 p-3">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
+                          <p className="text-xs text-red-700 text-left leading-relaxed">
+                            <strong>Incluye el codigo memo exacto</strong> en la nota/memo de tu transferencia.
+                            Sin el memo correcto, no podremos verificar tu pago automaticamente.
+                            Envia exactamente el monto indicado.
+                          </p>
+                        </div>
+
+                        {/* Status + Timer */}
+                        {paymentStatus === "pending" && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-center gap-2 text-sm text-surface-600">
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-300 border-t-amber-600" />
+                              Esperando deposito...
+                            </div>
+                            {timeRemaining && (
+                              <p className="text-xs text-surface-400">
+                                Expira en:{" "}
+                                <span className="font-mono font-medium text-surface-600">
+                                  {timeRemaining}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sandbox: manual confirm button */}
+                        {binanceState.sandbox && paymentStatus === "pending" && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleConfirmBinancePayment}
+                              disabled={isConfirmingQr}
+                              className={cn(
+                                "flex items-center justify-center gap-2 rounded-lg bg-accent-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200",
+                                "hover:bg-accent-700 active:bg-accent-800",
+                                "disabled:opacity-50 disabled:pointer-events-none",
+                                "cursor-pointer"
+                              )}
+                            >
+                              {isConfirmingQr ? (
+                                <>
+                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                  Verificando deposito...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  Confirmar deposito realizado
+                                </>
+                              )}
+                            </button>
+                            <p className="text-xs text-surface-400">
+                              Modo sandbox: haz clic para simular la confirmacion del deposito
+                            </p>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* QR Bolivia — waiting for payment */}
-                {qrState && (
+                {!binanceState && qrState && (
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-surface-700">
                       <Smartphone className="h-4 w-4 text-primary-500" />
@@ -575,7 +830,7 @@ export default function CheckoutPage() {
                 )}
 
                 {/* QR Bolivia — initial view */}
-                {!qrState && selectedPayment === "qr_bolivia" && (
+                {!qrState && !binanceState && selectedPayment === "qr_bolivia" && (
                   <div className="flex flex-col items-center text-center space-y-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-surface-700">
                       <Smartphone className="h-4 w-4 text-primary-500" />
@@ -605,7 +860,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {!qrState && selectedPayment === "stripe" && (
+                {!qrState && !binanceState && selectedPayment === "stripe" && (
                   <div className="flex flex-col items-center text-center space-y-4 py-4">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
                       <CreditCard className="h-8 w-8" />
@@ -629,18 +884,18 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {!qrState && selectedPayment === "binance_pay" && (
+                {!qrState && !binanceState && selectedPayment === "binance_pay" && (
                   <div className="flex flex-col items-center text-center space-y-4 py-4">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
                       <Globe className="h-8 w-8" />
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-surface-700">
-                        Seras redirigido a Binance Pay
+                        Transferencia USDT via Binance
                       </p>
                       <p className="text-xs text-surface-500">
-                        Inicia sesion en tu cuenta de Binance para completar el
-                        pago de forma segura.
+                        Envia USDT desde tu cuenta de Binance a nuestra billetera.
+                        Se generaran las instrucciones al confirmar.
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-amber-600">
@@ -649,7 +904,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {!qrState && selectedPayment === "crypto" && (
+                {!qrState && !binanceState && selectedPayment === "crypto" && (
                   <div className="flex flex-col items-center text-center space-y-4 py-4">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
                       <Globe className="h-8 w-8" />
@@ -659,8 +914,8 @@ export default function CheckoutPage() {
                         Pago con criptomonedas
                       </p>
                       <p className="text-xs text-surface-500">
-                        Envia Bitcoin, USDT, USDC u otra criptomoneda a la
-                        direccion indicada.
+                        Se redirigira a la pasarela de pago donde podras
+                        elegir Bitcoin, USDT, USDC u otra criptomoneda.
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-purple-600">
@@ -669,7 +924,7 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {!qrState && selectedPayment === "wallet" && (
+                {!qrState && !binanceState && selectedPayment === "wallet" && (
                   <div className="flex flex-col items-center text-center space-y-4 py-4">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
                       <Wallet className="h-8 w-8" />
@@ -772,6 +1027,60 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
+                {/* Vemper Required Fields */}
+                {Object.keys(productRequiredFields).length > 0 && (
+                  <div className="mb-5 space-y-3">
+                    {cartItems
+                      .filter(({ product }) => productRequiredFields[product.id])
+                      .map(({ product }) => (
+                        <div
+                          key={`vemper-${product.id}`}
+                          className="rounded-xl border border-amber-200 bg-amber-50 p-3"
+                        >
+                          <p className="text-xs font-semibold text-amber-800 mb-2">
+                            Datos requeridos para: {product.name}
+                          </p>
+                          <div className="space-y-2">
+                            {productRequiredFields[product.id].map((field) => {
+                              const label =
+                                field === "player_id"
+                                  ? "ID del Jugador"
+                                  : field === "server"
+                                  ? "Servidor"
+                                  : field === "phone_number"
+                                  ? "Numero de telefono"
+                                  : field;
+                              return (
+                                <div key={field}>
+                                  <label className="text-xs text-amber-700 block mb-0.5">
+                                    {label}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={
+                                      vemperFields[product.id]?.[field] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setVemperFields((prev) => ({
+                                        ...prev,
+                                        [product.id]: {
+                                          ...(prev[product.id] ?? {}),
+                                          [field]: e.target.value,
+                                        },
+                                      }))
+                                    }
+                                    placeholder={label}
+                                    className="w-full rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm text-surface-800 placeholder:text-surface-400 outline-none focus:border-primary-400"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
                 <div className="border-t border-surface-200 pt-4 space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-surface-600">Subtotal</span>
@@ -795,8 +1104,8 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Confirm Payment Button — hidden when QR is active */}
-                {!qrState && (
+                {/* Confirm Payment Button — hidden when QR or Binance is active */}
+                {!qrState && !binanceState && (
                   <>
                     <button
                       type="button"

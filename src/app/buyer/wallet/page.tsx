@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
   Wallet,
   ArrowUpCircle,
@@ -9,6 +10,7 @@ import {
   ChevronRight,
   Loader2,
   History,
+  Plus,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout";
 import { formatCurrency, formatDateTime, cn } from "@/lib/utils";
@@ -193,6 +195,13 @@ export default function BuyerWalletPage() {
                 </p>
               </div>
             </div>
+            <Link
+              href="/buyer/wallet/deposit"
+              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+            >
+              <Plus className="h-4 w-4" />
+              Recargar
+            </Link>
           </div>
         </div>
 

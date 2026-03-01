@@ -63,7 +63,7 @@ export function getPaymentMethodLabel(method: string): string {
   const labels: Record<string, string> = {
     qr_bolivia: "QR Bolivia",
     stripe: "Tarjeta de credito",
-    binance_pay: "Binance Pay",
+    binance_pay: "Transferencia Binance",
     crypto: "Criptomonedas",
     wallet: "Billetera",
   };

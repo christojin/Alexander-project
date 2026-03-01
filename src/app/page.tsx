@@ -42,20 +42,28 @@ const categoryIcons = [
   { label: "Amazon", image: "/images/amazon.svg", href: "/products?brand=amazon" },
 ];
 
-const popularCategories = [
-  { name: "PlayStation", image: "/images/playstation.svg", color: "from-blue-600 to-blue-800", href: "/products?brand=playstation" },
-  { name: "Valorant", image: "/images/valorant.svg", color: "from-red-500 to-red-700", href: "/products?brand=valorant" },
-  { name: "Xbox", image: "/images/xbox.svg", color: "from-green-600 to-green-800", href: "/products?brand=xbox" },
-  { name: "Riot Access", image: "/images/riot.svg", color: "from-red-600 to-red-800", href: "/products?brand=riot" },
-  { name: "Uber", image: "/images/uber.svg", color: "from-gray-800 to-black", href: "/products?brand=uber" },
-  { name: "Razer Gold", image: "/images/razer.svg", color: "from-green-500 to-green-700", href: "/products?brand=razer" },
-  { name: "Spotify", image: "/images/spotify.svg", color: "from-green-500 to-green-700", href: "/products?brand=spotify" },
-  { name: "Netflix", image: "/images/netflix.svg", color: "from-red-600 to-red-800", href: "/products?brand=netflix" },
-  { name: "Nintendo", image: "/images/nintendo.svg", color: "from-red-500 to-red-700", href: "/products?brand=nintendo" },
-  { name: "Fortnite", image: "/images/fortnite.svg", color: "from-blue-500 to-purple-700", href: "/products?brand=fortnite" },
-  { name: "Amazon", image: "/images/amazon.svg", color: "from-orange-500 to-orange-700", href: "/products?brand=amazon" },
-  { name: "Google Play", image: "/images/google-play.svg", color: "from-blue-500 to-green-500", href: "/products?brand=google-play" },
+// Gradient colors cycled for popular category cards
+const gradientColors = [
+  "from-blue-600 to-blue-800",
+  "from-red-500 to-red-700",
+  "from-green-600 to-green-800",
+  "from-purple-600 to-purple-800",
+  "from-orange-500 to-orange-700",
+  "from-indigo-600 to-indigo-800",
+  "from-pink-500 to-pink-700",
+  "from-teal-500 to-teal-700",
+  "from-amber-500 to-amber-700",
+  "from-cyan-600 to-cyan-800",
+  "from-rose-500 to-rose-700",
+  "from-emerald-500 to-emerald-700",
 ];
+
+interface PopularCategory {
+  name: string;
+  image: string;
+  color: string;
+  href: string;
+}
 
 interface BannerSlide {
   id: string;
@@ -79,8 +87,9 @@ export default function HomePage() {
   const [promotedPage, setPromotedPage] = useState(1);
   const [promotedTotalPages, setPromotedTotalPages] = useState(1);
   const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>([]);
+  const [popularCategories, setPopularCategories] = useState<PopularCategory[]>([]);
 
-  // Fetch banners from database
+  // Fetch banners and popular categories from database
   useEffect(() => {
     fetch("/api/banners")
       .then((res) => res.json())
@@ -88,6 +97,21 @@ export default function HomePage() {
         if (Array.isArray(data.banners)) {
           setBannerSlides(data.banners);
         }
+      })
+      .catch(console.error);
+
+    fetch("/api/catalog")
+      .then((res) => res.json())
+      .then((data) => {
+        const cats: PopularCategory[] = (data.categories ?? [])
+          .filter((c: { image?: string | null }) => c.image)
+          .map((c: { name: string; slug: string; image: string }, idx: number) => ({
+            name: c.name,
+            image: c.image,
+            color: gradientColors[idx % gradientColors.length],
+            href: `/products?category=${c.slug}`,
+          }));
+        setPopularCategories(cats);
       })
       .catch(console.error);
   }, []);
@@ -294,6 +318,7 @@ export default function HomePage() {
       {/* ============================================ */}
       {/* POPULAR CATEGORIES */}
       {/* ============================================ */}
+      {popularCategories.length > 0 && (
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex items-end justify-between mb-8">
           <h2 className="text-2xl font-bold text-surface-900">
@@ -332,6 +357,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+      )}
 
       {/* ============================================ */}
       {/* PROMOCIONES (Promoted Products) */}

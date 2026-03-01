@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendKycResultEmail } from "@/lib/email";
 
 // GET /api/admin/kyc/[id] — Get KYC detail
 export async function GET(
@@ -104,6 +105,11 @@ export async function PATCH(
       },
     });
   });
+
+  // Fire-and-forget KYC result email
+  if (seller.user.email) {
+    sendKycResultEmail(seller.user.email, isApprove, reviewNote).catch(() => {});
+  }
 
   return NextResponse.json({
     message: isApprove

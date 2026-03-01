@@ -66,12 +66,23 @@ export async function GET() {
     .filter((o) => o.status === "PENDING" || o.status === "UNDER_REVIEW")
     .reduce((sum, o) => sum + o.sellerEarnings, 0);
 
+  // Sum of pending + approved withdrawal amounts
+  const pendingWithdrawals = await prisma.withdrawal.aggregate({
+    where: {
+      sellerId: seller.id,
+      status: { in: ["PENDING", "APPROVED"] },
+    },
+    _sum: { amount: true },
+  });
+
   return NextResponse.json({
     commissionRate: seller.commissionRate,
     totalRevenue,
     totalCommissions,
     netBalance,
     pendingPayment,
+    availableBalance: seller.availableBalance,
+    pendingWithdrawals: pendingWithdrawals._sum.amount || 0,
     transactions: flatOrders,
   });
 }

@@ -18,11 +18,12 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { name, slug, description, icon, isActive } = body as {
+  const { name, slug, description, icon, image, isActive } = body as {
     name?: string;
     slug?: string;
     description?: string;
     icon?: string;
+    image?: string | null;
     isActive?: boolean;
   };
 
@@ -46,6 +47,7 @@ export async function PUT(
       ...(slug != null && { slug: slug.trim() }),
       ...(description != null && { description: description.trim() }),
       ...(icon != null && { icon }),
+      ...(image !== undefined && { image: image?.trim() || null }),
       ...(isActive != null && { isActive }),
     },
     include: { _count: { select: { products: true } } },
@@ -57,6 +59,7 @@ export async function PUT(
     slug: updated.slug,
     description: updated.description ?? "",
     icon: updated.icon ?? "Tag",
+    image: updated.image ?? "",
     productCount: updated._count.products,
     isActive: updated.isActive,
   });
@@ -117,6 +120,7 @@ export async function PATCH(
     slug: updated.slug,
     description: updated.description ?? "",
     icon: updated.icon ?? "Tag",
+    image: updated.image ?? "",
     productCount: updated._count.products,
     isActive: updated.isActive,
   });

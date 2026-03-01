@@ -193,7 +193,7 @@ export default function DashboardLayout({ role, children }: DashboardLayoutProps
   };
 
   const viewAllHref =
-    role === "admin" ? "/admin/notifications" : `/${role}/dashboard`;
+    role === "admin" ? "/admin/notifications" : `/${role}/notifications`;
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-50">

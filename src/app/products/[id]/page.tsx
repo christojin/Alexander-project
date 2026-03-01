@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -88,6 +88,7 @@ function formatDate(dateStr: string) {
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const { addToCart } = useApp();
   const [quantity, setQuantity] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
@@ -95,6 +96,7 @@ export default function ProductDetailPage() {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [contactingBusy, setContactingBusy] = useState(false);
 
   useEffect(() => {
     if (!params.id) return;
@@ -166,6 +168,29 @@ export default function ProductDetailPage() {
     }
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2000);
+  };
+
+  const handleContactSeller = async () => {
+    if (contactingBusy || !product) return;
+    setContactingBusy(true);
+    try {
+      const res = await fetch("/api/buyer/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sellerId: product.sellerId,
+          productId: product.id,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/buyer/chat?id=${data.conversationId}`);
+      }
+    } catch {
+      // Failed silently
+    } finally {
+      setContactingBusy(false);
+    }
   };
 
   return (
@@ -637,8 +662,16 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Contact Seller */}
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-surface-200 text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors">
-                <MessageCircle className="w-4 h-4" />
+              <button
+                onClick={handleContactSeller}
+                disabled={contactingBusy}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-surface-200 text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors disabled:opacity-50"
+              >
+                {contactingBusy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4" />
+                )}
                 Contactar vendedor
               </button>
             </div>

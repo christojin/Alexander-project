@@ -244,3 +244,52 @@ export function toFrontendTicket(prismaTicket: any): Ticket {
 export function toFrontendTickets(prismaTickets: any[]): Ticket[] {
   return prismaTickets.map(toFrontendTicket);
 }
+
+// ── Chat transforms ─────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toFrontendChatConversation(
+  prismaConv: any,
+  perspective: "buyer" | "seller",
+  userId: string
+) {
+  const unreadCount = (prismaConv.messages ?? []).filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (m: any) => m.senderId !== userId && !m.isRead
+  ).length;
+
+  const lastMsg = prismaConv.messages?.[prismaConv.messages.length - 1];
+
+  return {
+    id: prismaConv.id,
+    otherPartyName:
+      perspective === "buyer"
+        ? prismaConv.seller?.storeName ?? prismaConv.seller?.user?.name ?? ""
+        : prismaConv.buyer?.name ?? "",
+    otherPartyAvatar:
+      perspective === "buyer"
+        ? prismaConv.seller?.storePhoto ?? undefined
+        : prismaConv.buyer?.avatar ?? undefined,
+    productName: prismaConv.product?.name ?? undefined,
+    lastMessage: lastMsg?.content ?? undefined,
+    lastMessageAt: lastMsg?.createdAt?.toISOString?.() ?? undefined,
+    unreadCount,
+    isActive: prismaConv.isActive,
+    createdAt: prismaConv.createdAt?.toISOString?.() ?? "",
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toFrontendChatMessage(msg: any, buyerId: string) {
+  return {
+    id: msg.id,
+    conversationId: msg.conversationId,
+    senderId: msg.senderId,
+    senderName: msg.sender?.name ?? "",
+    senderRole: msg.senderId === buyerId ? "buyer" : "seller",
+    content: msg.content,
+    imageUrl: msg.imageUrl ?? undefined,
+    isRead: msg.isRead,
+    createdAt: msg.createdAt?.toISOString?.() ?? "",
+  };
+}

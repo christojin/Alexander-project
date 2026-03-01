@@ -94,6 +94,28 @@ export async function PATCH(
         where: { id: user.sellerProfile.id },
         data: sellerData,
       });
+
+      // Auto-demote excess promoted products when quota is reduced
+      const newQuota = sellerData.promotionQuota as number | undefined;
+      if (newQuota !== undefined) {
+        const promotedProducts = await prisma.product.findMany({
+          where: {
+            sellerId: user.sellerProfile.id,
+            isPromoted: true,
+            isDeleted: false,
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true },
+        });
+
+        if (promotedProducts.length > newQuota) {
+          const toRemove = promotedProducts.slice(newQuota);
+          await prisma.product.updateMany({
+            where: { id: { in: toRemove.map((p) => p.id) } },
+            data: { isPromoted: false },
+          });
+        }
+      }
     }
   }
 

@@ -35,6 +35,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             user: { select: { name: true, avatar: true, createdAt: true } },
           },
         },
+        vemperProduct: {
+          select: { requiredFields: true },
+        },
       },
     });
 
