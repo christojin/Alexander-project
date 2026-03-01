@@ -474,7 +474,21 @@ export default function AdminUsersPage() {
                           <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
                             {sellerInfo ? (
                               <div>
-                                <p className="font-medium">{sellerInfo.storeName}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">{sellerInfo.storeName}</p>
+                                  <span className={cn(
+                                    "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                    sellerInfo.status === "APPROVED" && "bg-green-100 text-green-700",
+                                    sellerInfo.status === "PENDING" && "bg-amber-100 text-amber-700",
+                                    sellerInfo.status === "REJECTED" && "bg-red-100 text-red-700",
+                                    !["APPROVED", "PENDING", "REJECTED"].includes(sellerInfo.status) && "bg-slate-100 text-slate-600"
+                                  )}>
+                                    {sellerInfo.status === "APPROVED" ? "Aprobado" :
+                                     sellerInfo.status === "PENDING" ? "Pendiente" :
+                                     sellerInfo.status === "REJECTED" ? "Rechazado" :
+                                     sellerInfo.status}
+                                  </span>
+                                </div>
                                 <p className="text-xs text-slate-500">
                                   {sellerInfo.commissionRate}% comision -- {sellerInfo.totalSales} ventas
                                 </p>

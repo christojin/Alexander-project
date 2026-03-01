@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   ShieldCheck,
   Tag,
-  Info,
 } from "lucide-react";
 import { Header, Footer } from "@/components/layout";
 import { useApp } from "@/context/AppContext";
@@ -26,9 +25,6 @@ export default function CartPage() {
     cartTotalItems,
     cartTotalAmount,
   } = useApp();
-
-  const commissionRate = 0.05;
-  const commissionInfo = cartTotalAmount * commissionRate;
 
   if (cartItems.length === 0) {
     return (
@@ -199,16 +195,6 @@ export default function CartPage() {
                     <span className="font-medium text-surface-900">
                       {formatCurrency(cartTotalAmount)}
                     </span>
-                  </div>
-
-                  {/* Commission info */}
-                  <div className="flex items-start gap-2 rounded-lg bg-surface-50 p-3">
-                    <Info className="h-4 w-4 shrink-0 text-surface-400 mt-0.5" />
-                    <div className="text-xs text-surface-500 leading-relaxed">
-                      <span className="font-medium text-surface-600">Comision de plataforma:</span>{" "}
-                      Un {(commissionRate * 100).toFixed(0)}% se aplica al vendedor como comision de servicio.
-                      El precio que ves es el precio final para ti.
-                    </div>
                   </div>
 
                   <div className="border-t border-surface-200 pt-3">

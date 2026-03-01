@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -25,6 +26,7 @@ import { Footer } from "@/components/layout";
 import ProductCard from "@/components/products/ProductCard";
 import { useApp } from "@/context/AppContext";
 import { toFrontendProducts } from "@/lib/api-transforms";
+import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
 interface BusinessHour {
@@ -44,6 +46,7 @@ interface SellerInfo {
   totalReviews: number;
   totalSales: number;
   isVerified: boolean;
+  isOfficial?: boolean;
   marketType: string;
   createdAt: string;
   user: {
@@ -91,13 +94,40 @@ function isOpenNow(businessHours: BusinessHour[]): boolean {
 
 export default function SellerStorePage() {
   const params = useParams();
+  const router = useRouter();
+  const { data: session } = useSession();
   const { addToCart } = useApp();
   const [seller, setSeller] = useState<SellerInfo | null>(null);
+  const [contactingBusy, setContactingBusy] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("newest");
+
+  const handleContactSeller = async () => {
+    if (!session) {
+      router.push("/auth/login");
+      return;
+    }
+    if (contactingBusy || !seller) return;
+    setContactingBusy(true);
+    try {
+      const res = await fetch("/api/buyer/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/buyer/chat?id=${data.conversationId}`);
+      }
+    } catch {
+      // Failed silently
+    } finally {
+      setContactingBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!params.id) return;
@@ -158,7 +188,12 @@ export default function SellerStorePage() {
       <Header />
 
       {/* Store Header */}
-      <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white">
+      <div className={cn(
+        "text-white",
+        seller.isOfficial
+          ? "bg-gradient-to-br from-amber-600 via-amber-700 to-amber-800"
+          : "bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800"
+      )}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Avatar */}
@@ -185,7 +220,12 @@ export default function SellerStorePage() {
                   {seller.storeName}
                 </h1>
                 {seller.isVerified && (
-                  <BadgeCheck className="w-6 h-6 text-primary-200" />
+                  <BadgeCheck className={cn("w-6 h-6", seller.isOfficial ? "text-amber-200" : "text-primary-200")} />
+                )}
+                {seller.isOfficial && (
+                  <span className="inline-flex items-center rounded-full bg-white/20 backdrop-blur-sm px-3 py-0.5 text-xs font-semibold">
+                    Tienda Oficial
+                  </span>
                 )}
               </div>
               {seller.storeDescription && (
@@ -220,11 +260,21 @@ export default function SellerStorePage() {
               </div>
             </div>
 
-            {/* Contact Button */}
-            <button className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/20 font-semibold transition-colors">
-              <MessageCircle className="w-4 h-4" />
-              Contactar
-            </button>
+            {/* Contact Button — hide for official store */}
+            {!seller.isOfficial && (
+              <button
+                onClick={handleContactSeller}
+                disabled={contactingBusy}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/20 font-semibold transition-colors disabled:opacity-50"
+              >
+                {contactingBusy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="w-4 h-4" />
+                )}
+                Contactar
+              </button>
+            )}
           </div>
         </div>
       </div>

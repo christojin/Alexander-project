@@ -112,7 +112,20 @@ export async function POST(req: NextRequest) {
       sellerId,
       productId: productId ?? null,
     },
+    include: { _count: { select: { messages: true } } },
   });
+
+  // Add welcome message if this is a brand-new conversation
+  if (conversation._count.messages === 0) {
+    await prisma.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: "system",
+        content:
+          "Bienvenido al chat. Escribe tu mensaje para iniciar la conversacion.",
+      },
+    });
+  }
 
   return NextResponse.json({ conversationId: conversation.id });
 }

@@ -154,9 +154,22 @@ export async function getWalletInfo(
     prisma.walletTransaction.count({ where: { userId } }),
   ]);
 
+  // Map Prisma enum to frontend-friendly "credit" | "debit"
+  const creditTypes: WalletTransactionType[] = ["DEPOSIT_CREDIT", "REFUND_CREDIT"];
+  const mapped = transactions.map((tx) => ({
+    id: tx.id,
+    type: creditTypes.includes(tx.type) ? ("credit" as const) : ("debit" as const),
+    amount: Math.abs(tx.amount),
+    balanceBefore: tx.balanceBefore,
+    balanceAfter: tx.balanceAfter,
+    description: tx.description,
+    orderId: tx.orderId,
+    createdAt: tx.createdAt.toISOString(),
+  }));
+
   return {
     balance: user?.walletBalance ?? 0,
-    transactions,
+    transactions: mapped,
     pagination: {
       page,
       limit,

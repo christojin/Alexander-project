@@ -9,9 +9,9 @@ const protectedRoutes = ["/buyer", "/seller", "/admin", "/checkout"];
 
 // Role-specific route prefixes
 const roleRoutes: Record<string, string[]> = {
-  BUYER: ["/buyer"],
-  SELLER: ["/seller"],
-  ADMIN: ["/admin", "/buyer", "/seller"],
+  BUYER: ["/buyer", "/checkout"],
+  SELLER: ["/seller", "/checkout"],
+  ADMIN: ["/admin", "/buyer", "/seller", "/checkout"],
 };
 
 // Auth pages that should redirect if already logged in

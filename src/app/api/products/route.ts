@@ -108,11 +108,21 @@ export async function GET(req: NextRequest) {
 
     // ─── Promoted-only mode (homepage "Promociones") ───
     if (promoted === "true") {
-      const allPromoted = await prisma.product.findMany({
+      let allPromoted = await prisma.product.findMany({
         where: { ...baseWhere, isPromoted: true },
         include,
         orderBy: { createdAt: "asc" },
       });
+
+      // Fallback: if no explicitly promoted products, show newest active products
+      if (allPromoted.length === 0) {
+        allPromoted = await prisma.product.findMany({
+          where: baseWhere,
+          include,
+          orderBy: { createdAt: "desc" },
+          take: 25,
+        });
+      }
 
       const total = allPromoted.length;
       const offset = getRotationOffset(total);

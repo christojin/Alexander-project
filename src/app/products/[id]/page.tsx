@@ -625,9 +625,9 @@ export default function ProductDetailPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-surface-900">
+                    <Link href={`/store/${product.sellerId}`} className="font-semibold text-surface-900 hover:text-primary-600 transition-colors">
                       {product.sellerName}
-                    </span>
+                    </Link>
                     {product.sellerVerified && (
                       <BadgeCheck className="w-4.5 h-4.5 text-primary-500" />
                     )}

@@ -385,12 +385,13 @@ function LoginContent() {
             </div>
 
             <div className="flex items-center justify-end">
-              <Link
-                href="#"
+              <button
+                type="button"
+                onClick={() => alert("Esta funcion estara disponible pronto.")}
                 className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
               >
                 Olvidaste tu contrasena?
-              </Link>
+              </button>
             </div>
 
             <button

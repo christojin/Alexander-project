@@ -63,6 +63,25 @@ export default function AdminBannersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<BannerForm>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "banners");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        setForm((f) => ({ ...f, imageUrl: data.url }));
+      }
+    } catch {
+      // Upload failed silently
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const fetchBanners = () => {
     setLoading(true);
@@ -398,15 +417,52 @@ export default function AdminBannersPage() {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  URL de imagen <span className="text-red-500">*</span>
+                  Imagen del banner <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                  placeholder="https://... o /images/banner.jpg"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
+                {form.imageUrl ? (
+                  <div className="relative mb-2">
+                    <img
+                      src={form.imageUrl}
+                      alt="Banner preview"
+                      className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                      className="absolute top-2 right-2 rounded-full bg-white/90 p-1 shadow-sm hover:bg-white"
+                    >
+                      <X className="h-4 w-4 text-slate-600" />
+                    </button>
+                  </div>
+                ) : null}
+                <label className={cn(
+                  "flex items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 py-4 text-sm cursor-pointer transition-colors",
+                  uploadingImage
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-500"
+                    : "border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 text-slate-500"
+                )}>
+                  {uploadingImage ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="h-4 w-4" />
+                      {form.imageUrl ? "Cambiar imagen" : "Subir imagen"}
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                    }}
+                  />
+                </label>
               </div>
 
               <div>
