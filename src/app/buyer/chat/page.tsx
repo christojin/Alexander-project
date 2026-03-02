@@ -13,6 +13,7 @@ import {
   Loader2,
   Image as ImageIcon,
   User,
+  AlertTriangle,
 } from "lucide-react";
 
 export default function BuyerChatPage() {
@@ -230,6 +231,14 @@ function BuyerChatContent() {
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Pinned Warning */}
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  <span className="font-semibold">Aviso VirtuMall:</span> No compartas informacion personal ni negocies fuera de la plataforma. VirtuMall no se responsabiliza por perdidas fuera del sitio. Infractores sujetos a multas y suspension permanente.
+                </p>
               </div>
 
               {/* Messages */}

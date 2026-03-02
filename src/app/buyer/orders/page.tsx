@@ -499,22 +499,10 @@ export default function BuyerOrdersPage() {
                           </div>
                         )}
 
-                        {/* Actions: Refund + Open Ticket */}
+                        {/* Actions: Open Ticket */}
                         <div className="flex flex-wrap justify-end gap-2">
-                          {/* Refund button: only for completed streaming orders without existing refund */}
-                          {order.status === "completed" &&
-                            order.productType === "streaming" &&
-                            !refundResult[order.id] && (
-                              <button
-                                onClick={() => setRefundModal(order.id)}
-                                className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:border-red-300 hover:bg-red-50"
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                                Solicitar reembolso
-                              </button>
-                            )}
                           <Link
-                            href="/buyer/tickets"
+                            href={`/buyer/tickets?openFor=${order.id}`}
                             className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-surface-700 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700"
                           >
                             <TicketCheck className="h-4 w-4" />

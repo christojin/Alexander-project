@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
   MessageSquare,
   Clock,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -52,6 +54,23 @@ const statusIconMap: Record<TicketStatus, typeof AlertCircle> = {
 };
 
 export default function BuyerTicketsPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout role="buyer">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        </div>
+      </DashboardLayout>
+    }>
+      <BuyerTicketsContent />
+    </Suspense>
+  );
+}
+
+function BuyerTicketsContent() {
+  const searchParams = useSearchParams();
+  const openForOrderId = searchParams.get("openFor");
+
   const [ticketsList, setTicketsList] = useState<Ticket[]>([]);
   const [buyerOrders, setBuyerOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +88,7 @@ export default function BuyerTicketsPage() {
   const [newTicketMessage, setNewTicketMessage] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const openForHandled = useRef(false);
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -101,6 +121,15 @@ export default function BuyerTicketsPage() {
     loadData();
   }, [fetchTickets, fetchOrders]);
 
+  // Auto-open new ticket modal when openFor query param is present
+  useEffect(() => {
+    if (openForOrderId && !loading && !openForHandled.current) {
+      openForHandled.current = true;
+      setNewTicketOrderId(openForOrderId);
+      setShowNewTicketModal(true);
+    }
+  }, [openForOrderId, loading]);
+
   const filteredTickets = useMemo(() => {
     return ticketsList.filter((ticket) => {
       const matchesStatus =
@@ -110,7 +139,8 @@ export default function BuyerTicketsPage() {
         !query ||
         ticket.subject.toLowerCase().includes(query) ||
         ticket.id.toLowerCase().includes(query) ||
-        ticket.sellerName.toLowerCase().includes(query);
+        ticket.sellerName.toLowerCase().includes(query) ||
+        ticket.orderId.toLowerCase().includes(query);
       return matchesStatus && matchesSearch;
     });
   }, [ticketsList, searchQuery, statusFilter]);
@@ -236,6 +266,14 @@ export default function BuyerTicketsPage() {
           </button>
         </div>
 
+        {/* Warning Banner */}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800 leading-relaxed">
+            <span className="font-semibold">Aviso VirtuMall:</span> No compartas informacion personal ni negocies fuera de la plataforma. VirtuMall no se responsabiliza por perdidas fuera del sitio. Infractores sujetos a multas y suspension permanente.
+          </p>
+        </div>
+
         {/* Search and Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
@@ -243,7 +281,7 @@ export default function BuyerTicketsPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
             <input
               type="text"
-              placeholder="Buscar por asunto, ID o vendedor..."
+              placeholder="Buscar por asunto, ID, pedido o vendedor..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-surface-200 bg-white py-2.5 pl-10 pr-4 text-sm text-surface-900 placeholder:text-surface-400 outline-none transition-colors focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
