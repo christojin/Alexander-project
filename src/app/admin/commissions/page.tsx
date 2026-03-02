@@ -13,6 +13,10 @@ import {
   CheckCircle2,
   Loader2,
   ShoppingCart,
+  CreditCard,
+  QrCode,
+  Globe,
+  Wallet,
 } from "lucide-react";
 
 interface SellerWithStats {
@@ -43,6 +47,18 @@ export default function AdminCommissionsPage() {
   const [buyerFeePercent, setBuyerFeePercent] = useState(0);
   const [buyerFeeSaved, setBuyerFeeSaved] = useState(false);
 
+  // Per-gateway fee state
+  const [gatewayFees, setGatewayFees] = useState<
+    Record<string, { feePercent: number; feeFixed: number }>
+  >({
+    stripe: { feePercent: 0, feeFixed: 0 },
+    qr_bolivia: { feePercent: 0, feeFixed: 0 },
+    binance_pay: { feePercent: 0, feeFixed: 0 },
+    crypto: { feePercent: 0, feeFixed: 0 },
+    wallet: { feePercent: 0, feeFixed: 0 },
+  });
+  const [gatewayFeesSaved, setGatewayFeesSaved] = useState(false);
+
   const fetchCommissions = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/commissions");
@@ -61,13 +77,35 @@ export default function AdminCommissionsPage() {
 
   useEffect(() => {
     fetchCommissions();
-    // Load buyer fee settings
+    // Load buyer fee + gateway fee settings
     fetch("/api/admin/settings")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data) {
           setBuyerFeeFixed(data.buyerServiceFeeFixed ?? 0);
           setBuyerFeePercent(data.buyerServiceFeePercent ?? 0);
+          setGatewayFees({
+            stripe: {
+              feePercent: data.stripeGatewayFeePercent ?? 0,
+              feeFixed: data.stripeGatewayFeeFixed ?? 0,
+            },
+            qr_bolivia: {
+              feePercent: data.qrBoliviaGatewayFeePercent ?? 0,
+              feeFixed: data.qrBoliviaGatewayFeeFixed ?? 0,
+            },
+            binance_pay: {
+              feePercent: data.binancePayGatewayFeePercent ?? 0,
+              feeFixed: data.binancePayGatewayFeeFixed ?? 0,
+            },
+            crypto: {
+              feePercent: data.cryptoGatewayFeePercent ?? 0,
+              feeFixed: data.cryptoGatewayFeeFixed ?? 0,
+            },
+            wallet: {
+              feePercent: data.walletGatewayFeePercent ?? 0,
+              feeFixed: data.walletGatewayFeeFixed ?? 0,
+            },
+          });
         }
       })
       .catch(() => {});
@@ -161,6 +199,40 @@ export default function AdminCommissionsPage() {
       console.error("Error saving buyer fee:", error);
     }
   };
+
+  const handleSaveGatewayFees = async () => {
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stripeGatewayFeePercent: gatewayFees.stripe.feePercent,
+          stripeGatewayFeeFixed: gatewayFees.stripe.feeFixed,
+          qrBoliviaGatewayFeePercent: gatewayFees.qr_bolivia.feePercent,
+          qrBoliviaGatewayFeeFixed: gatewayFees.qr_bolivia.feeFixed,
+          binancePayGatewayFeePercent: gatewayFees.binance_pay.feePercent,
+          binancePayGatewayFeeFixed: gatewayFees.binance_pay.feeFixed,
+          cryptoGatewayFeePercent: gatewayFees.crypto.feePercent,
+          cryptoGatewayFeeFixed: gatewayFees.crypto.feeFixed,
+          walletGatewayFeePercent: gatewayFees.wallet.feePercent,
+          walletGatewayFeeFixed: gatewayFees.wallet.feeFixed,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save gateway fees");
+      setGatewayFeesSaved(true);
+      setTimeout(() => setGatewayFeesSaved(false), 2000);
+    } catch (error) {
+      console.error("Error saving gateway fees:", error);
+    }
+  };
+
+  const gatewayList = [
+    { key: "stripe", label: "Stripe (Tarjeta)", icon: CreditCard, color: "bg-blue-100 text-blue-600" },
+    { key: "qr_bolivia", label: "QR Bolivia", icon: QrCode, color: "bg-green-100 text-green-600" },
+    { key: "binance_pay", label: "Binance Pay", icon: Globe, color: "bg-amber-100 text-amber-600" },
+    { key: "crypto", label: "Criptomonedas", icon: Globe, color: "bg-purple-100 text-purple-600" },
+    { key: "wallet", label: "Billetera VirtuMall", icon: Wallet, color: "bg-teal-100 text-teal-600" },
+  ];
 
   const calcCommission = calcAmount * (calcRate / 100);
   const calcSellerReceives = calcAmount - calcCommission;
@@ -462,6 +534,123 @@ export default function AdminCommissionsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Per-Gateway Fee Configuration */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Comisiones por pasarela de pago
+              </h2>
+              <p className="text-sm text-slate-500">
+                Cargo adicional que cobra cada pasarela (se suma a la tarifa de servicio)
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {gatewayList.map((gw) => {
+              const GwIcon = gw.icon;
+              const fees = gatewayFees[gw.key] ?? { feePercent: 0, feeFixed: 0 };
+              const sampleAmount = 52;
+              const gwFee = fees.feeFixed + sampleAmount * (fees.feePercent / 100);
+              const platformFeePreview = buyerFeeFixed + sampleAmount * (buyerFeePercent / 100);
+              const totalCharge = gwFee + platformFeePreview;
+
+              return (
+                <div
+                  key={gw.key}
+                  className="rounded-lg border border-slate-200 p-4"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${gw.color}`}>
+                      <GwIcon className="h-4 w-4" />
+                    </div>
+                    <span className="font-medium text-slate-900">{gw.label}</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Comision pasarela (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={fees.feePercent}
+                        onChange={(e) =>
+                          setGatewayFees((prev) => ({
+                            ...prev,
+                            [gw.key]: { ...prev[gw.key], feePercent: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        min={0}
+                        max={50}
+                        step={0.1}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Cargo fijo pasarela ($)
+                      </label>
+                      <input
+                        type="number"
+                        value={fees.feeFixed}
+                        onChange={(e) =>
+                          setGatewayFees((prev) => ({
+                            ...prev,
+                            [gw.key]: { ...prev[gw.key], feeFixed: Number(e.target.value) },
+                          }))
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        min={0}
+                        step={0.1}
+                      />
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500 mb-1">Compra de {formatCurrency(sampleAmount)}:</p>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Pasarela:</span>
+                          <span className="font-medium text-slate-700">{formatCurrency(gwFee)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Plataforma:</span>
+                          <span className="font-medium text-slate-700">{formatCurrency(platformFeePreview)}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-slate-200 pt-0.5">
+                          <span className="font-medium text-slate-700">Total cargos:</span>
+                          <span className="font-bold text-indigo-600">{formatCurrency(totalCharge)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleSaveGatewayFees}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-all",
+                gatewayFeesSaved
+                  ? "bg-green-500"
+                  : "bg-indigo-600 hover:bg-indigo-700"
+              )}
+            >
+              {gatewayFeesSaved ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {gatewayFeesSaved ? "Guardado" : "Guardar comisiones de pasarelas"}
+            </button>
           </div>
         </div>
 

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (!folder || !isValidFolder(folder)) {
       return NextResponse.json(
-        { error: "Carpeta no válida. Usa: kyc, avatars, stores" },
+        { error: "Carpeta no válida. Usa: kyc, avatars, stores, categories" },
         { status: 400 }
       );
     }

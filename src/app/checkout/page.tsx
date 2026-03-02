@@ -74,6 +74,13 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Fee configuration
+  const [feeConfig, setFeeConfig] = useState<{
+    serviceFeeFixed: number;
+    serviceFeePercent: number;
+    gateways: Record<string, { feePercent: number; feeFixed: number }>;
+  } | null>(null);
+
   // Vemper required fields per product (e.g., player_id)
   const [vemperFields, setVemperFields] = useState<
     Record<string, Record<string, string>>
@@ -81,6 +88,18 @@ export default function CheckoutPage() {
   const [productRequiredFields, setProductRequiredFields] = useState<
     Record<string, string[]>
   >({});
+
+  // Fetch fee configuration
+  useEffect(() => {
+    fetch("/api/checkout/fees")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.serviceFeeFixed !== undefined) {
+          setFeeConfig(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch required fields for products in cart
   useEffect(() => {
@@ -227,6 +246,17 @@ export default function CheckoutPage() {
       : []),
     ...basePaymentOptions,
   ];
+
+  // Calculate fees based on selected payment method
+  const platformFee = feeConfig
+    ? feeConfig.serviceFeeFixed + cartTotalAmount * (feeConfig.serviceFeePercent / 100)
+    : 0;
+  const gatewayFeeConfig = feeConfig?.gateways[selectedPayment];
+  const gatewayFee = gatewayFeeConfig
+    ? gatewayFeeConfig.feeFixed + cartTotalAmount * (gatewayFeeConfig.feePercent / 100)
+    : 0;
+  const totalFees = platformFee + gatewayFee;
+  const grandTotalDisplay = cartTotalAmount + totalFees;
 
   const currentStep = 2;
 
@@ -855,7 +885,7 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-primary-600">
-                      {formatCurrency(cartTotalAmount)}
+                      {formatCurrency(grandTotalDisplay)}
                     </div>
                   </div>
                 )}
@@ -875,7 +905,7 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-primary-600">
-                      {formatCurrency(cartTotalAmount)}
+                      {formatCurrency(grandTotalDisplay)}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-surface-400">
                       <Lock className="h-3.5 w-3.5" />
@@ -899,7 +929,7 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-amber-600">
-                      {formatCurrency(cartTotalAmount)}
+                      {formatCurrency(grandTotalDisplay)}
                     </div>
                   </div>
                 )}
@@ -919,7 +949,7 @@ export default function CheckoutPage() {
                       </p>
                     </div>
                     <div className="text-2xl font-bold text-purple-600">
-                      {formatCurrency(cartTotalAmount)}
+                      {formatCurrency(grandTotalDisplay)}
                     </div>
                   </div>
                 )}
@@ -939,7 +969,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="space-y-1">
                       <div className="text-2xl font-bold text-accent-600">
-                        {formatCurrency(cartTotalAmount)}
+                        {formatCurrency(grandTotalDisplay)}
                       </div>
                       <p className="text-xs text-surface-500">
                         Saldo disponible:{" "}
@@ -948,13 +978,13 @@ export default function CheckoutPage() {
                         </span>
                       </p>
                     </div>
-                    {walletBalance < cartTotalAmount && (
+                    {walletBalance < grandTotalDisplay && (
                       <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
                         <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
                         <p className="text-xs text-amber-700">
                           Saldo insuficiente. Necesitas{" "}
                           <span className="font-semibold">
-                            {formatCurrency(cartTotalAmount - walletBalance)}
+                            {formatCurrency(grandTotalDisplay - walletBalance)}
                           </span>{" "}
                           adicionales.
                         </p>
@@ -1088,17 +1118,35 @@ export default function CheckoutPage() {
                       {formatCurrency(cartTotalAmount)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-surface-600">Procesamiento</span>
-                    <span className="font-medium text-accent-600">Gratis</span>
-                  </div>
+                  {platformFee > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-surface-600">Tarifa de servicio</span>
+                      <span className="font-medium text-surface-700">
+                        +{formatCurrency(platformFee)}
+                      </span>
+                    </div>
+                  )}
+                  {gatewayFee > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-surface-600">Comision pasarela</span>
+                      <span className="font-medium text-surface-700">
+                        +{formatCurrency(gatewayFee)}
+                      </span>
+                    </div>
+                  )}
+                  {totalFees === 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-surface-600">Cargos adicionales</span>
+                      <span className="font-medium text-accent-600">Gratis</span>
+                    </div>
+                  )}
                   <div className="border-t border-surface-200 pt-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-base font-bold text-surface-900">
                         Total
                       </span>
                       <span className="text-xl font-bold text-primary-600">
-                        {formatCurrency(cartTotalAmount)}
+                        {formatCurrency(grandTotalDisplay)}
                       </span>
                     </div>
                   </div>
@@ -1110,7 +1158,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={handleConfirmPayment}
-                      disabled={isProcessing || (selectedPayment === "wallet" && walletBalance < cartTotalAmount)}
+                      disabled={isProcessing || (selectedPayment === "wallet" && walletBalance < grandTotalDisplay)}
                       className={cn(
                         "mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-medium text-white shadow-sm shadow-primary-600/25 transition-all duration-200",
                         "hover:bg-primary-700 active:bg-primary-800",

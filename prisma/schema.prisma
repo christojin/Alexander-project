@@ -176,8 +176,10 @@ model Category {
   slug         String    @unique
   description  String?
   icon         String?   // icon name or URL
-  image        String?   // category card image (admin uploads)
+  image        String?   // square image (icon/logo)
+  bannerImage  String?   // rectangular image for popular category cards on home
   mascotImage  String?   // mascot variant for this category
+  isPopular    Boolean   @default(false) // show in "Categorias populares" on home
   displayOrder Int       @default(0)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
@@ -771,6 +773,27 @@ model PlatformSettings {
   highValueThreshold       Float   @default(100)  // amount to flag as high value
   requireManualReviewAbove Float   @default(500)  // require manual review above this
   bannerIntervalSeconds    Int     @default(5)    // hero slider speed
+  // Per-gateway fees (charged to buyer on top of platform service fee)
+  stripeGatewayFeePercent      Float @default(0)
+  stripeGatewayFeeFixed        Float @default(0)
+  qrBoliviaGatewayFeePercent   Float @default(0)
+  qrBoliviaGatewayFeeFixed     Float @default(0)
+  binancePayGatewayFeePercent  Float @default(0)
+  binancePayGatewayFeeFixed    Float @default(0)
+  cryptoGatewayFeePercent      Float @default(0)
+  cryptoGatewayFeeFixed        Float @default(0)
+  walletGatewayFeePercent      Float @default(0)
+  walletGatewayFeeFixed        Float @default(0)
+  // Social media & contact
+  facebookUrl              String?
+  instagramUrl             String?
+  twitterUrl               String?
+  tiktokUrl                String?
+  whatsappUrl              String?
+  telegramUrl              String?
+  contactEmail             String?
+  contactPhone             String?
+  contactLocation          String?
   updatedAt                DateTime @updatedAt
 
   @@map("platform_settings")

@@ -18,12 +18,14 @@ export async function PUT(
 
   const { id } = await params;
   const body = await req.json();
-  const { name, slug, description, icon, image, isActive } = body as {
+  const { name, slug, description, icon, image, bannerImage, isPopular, isActive } = body as {
     name?: string;
     slug?: string;
     description?: string;
     icon?: string;
     image?: string | null;
+    bannerImage?: string | null;
+    isPopular?: boolean;
     isActive?: boolean;
   };
 
@@ -48,6 +50,8 @@ export async function PUT(
       ...(description != null && { description: description.trim() }),
       ...(icon != null && { icon }),
       ...(image !== undefined && { image: image?.trim() || null }),
+      ...(bannerImage !== undefined && { bannerImage: bannerImage?.trim() || null }),
+      ...(isPopular != null && { isPopular }),
       ...(isActive != null && { isActive }),
     },
     include: { _count: { select: { products: true } } },
@@ -60,6 +64,8 @@ export async function PUT(
     description: updated.description ?? "",
     icon: updated.icon ?? "Tag",
     image: updated.image ?? "",
+    bannerImage: updated.bannerImage ?? "",
+    isPopular: updated.isPopular,
     productCount: updated._count.products,
     isActive: updated.isActive,
   });
@@ -106,11 +112,14 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { isActive } = body as { isActive: boolean };
+  const { isActive, isPopular } = body as { isActive?: boolean; isPopular?: boolean };
 
   const updated = await prisma.category.update({
     where: { id },
-    data: { isActive },
+    data: {
+      ...(isActive != null && { isActive }),
+      ...(isPopular != null && { isPopular }),
+    },
     include: { _count: { select: { products: true } } },
   });
 
@@ -121,6 +130,8 @@ export async function PATCH(
     description: updated.description ?? "",
     icon: updated.icon ?? "Tag",
     image: updated.image ?? "",
+    bannerImage: updated.bannerImage ?? "",
+    isPopular: updated.isPopular,
     productCount: updated._count.products,
     isActive: updated.isActive,
   });

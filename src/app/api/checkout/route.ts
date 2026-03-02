@@ -121,6 +121,16 @@ export async function POST(req: NextRequest) {
     const serviceFeeFixed = settings?.buyerServiceFeeFixed ?? 0;
     const serviceFeePercent = settings?.buyerServiceFeePercent ?? 0;
 
+    // Per-gateway fee lookup
+    const gatewayFeeMap: Record<string, { percent: number; fixed: number }> = {
+      stripe: { percent: settings?.stripeGatewayFeePercent ?? 0, fixed: settings?.stripeGatewayFeeFixed ?? 0 },
+      qr_bolivia: { percent: settings?.qrBoliviaGatewayFeePercent ?? 0, fixed: settings?.qrBoliviaGatewayFeeFixed ?? 0 },
+      binance_pay: { percent: settings?.binancePayGatewayFeePercent ?? 0, fixed: settings?.binancePayGatewayFeeFixed ?? 0 },
+      crypto: { percent: settings?.cryptoGatewayFeePercent ?? 0, fixed: settings?.cryptoGatewayFeeFixed ?? 0 },
+      wallet: { percent: settings?.walletGatewayFeePercent ?? 0, fixed: settings?.walletGatewayFeeFixed ?? 0 },
+    };
+    const gwFee = gatewayFeeMap[paymentMethod] ?? { percent: 0, fixed: 0 };
+
     // ── 3. Group items by seller ────────────────────────────────
     const sellerGroups = new Map<
       string,
@@ -154,7 +164,9 @@ export async function POST(req: NextRequest) {
       );
       const serviceFeeAmount =
         serviceFeeFixed + subtotal * (serviceFeePercent / 100);
-      const totalAmount = subtotal + serviceFeeAmount;
+      const gatewayFeeAmount =
+        gwFee.fixed + subtotal * (gwFee.percent / 100);
+      const totalAmount = subtotal + serviceFeeAmount + gatewayFeeAmount;
       const commissionRate = group.seller.commissionRate;
       const commissionAmount = subtotal * (commissionRate / 100);
       const sellerEarnings = subtotal - commissionAmount;

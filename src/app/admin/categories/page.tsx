@@ -27,6 +27,8 @@ import {
   Layers,
   Loader2,
   ImageIcon,
+  Star,
+  Upload,
 } from "lucide-react";
 
 const iconOptions = [
@@ -64,6 +66,8 @@ interface CategoryForm {
   description: string;
   icon: string;
   image: string;
+  bannerImage: string;
+  isPopular: boolean;
   isActive: boolean;
 }
 
@@ -73,6 +77,8 @@ const emptyForm: CategoryForm = {
   description: "",
   icon: "Tag",
   image: "",
+  bannerImage: "",
+  isPopular: false,
   isActive: true,
 };
 
@@ -83,6 +89,45 @@ export default function AdminCategoriesPage() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [form, setForm] = useState<CategoryForm>(emptyForm);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  const handleUploadImage = async (file: File, field: "image" | "bannerImage") => {
+    const setter = field === "image" ? setUploadingImage : setUploadingBanner;
+    setter(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "categories");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setForm((prev) => ({ ...prev, [field]: data.url }));
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setter(false);
+    }
+  };
+
+  const handleTogglePopular = async (catId: string) => {
+    const category = categoryList.find((c) => c.id === catId);
+    if (!category) return;
+    try {
+      const res = await fetch(`/api/admin/categories/${catId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPopular: !category.isPopular }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle popular");
+      const updated: Category = await res.json();
+      setCategoryList((prev) =>
+        prev.map((c) => (c.id === updated.id ? updated : c))
+      );
+    } catch (err) {
+      console.error("Error toggling popular:", err);
+    }
+  };
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -132,6 +177,8 @@ export default function AdminCategoriesPage() {
           description: form.description,
           icon: form.icon,
           image: form.image || null,
+          bannerImage: form.bannerImage || null,
+          isPopular: form.isPopular,
           isActive: form.isActive,
         }),
       });
@@ -157,6 +204,8 @@ export default function AdminCategoriesPage() {
           description: form.description,
           icon: form.icon,
           image: form.image || null,
+          bannerImage: form.bannerImage || null,
+          isPopular: form.isPopular,
           isActive: form.isActive,
         }),
       });
@@ -193,6 +242,8 @@ export default function AdminCategoriesPage() {
       description: cat.description,
       icon: cat.icon,
       image: cat.image ?? "",
+      bannerImage: cat.bannerImage ?? "",
+      isPopular: cat.isPopular,
       isActive: cat.isActive,
     });
   };
@@ -318,27 +369,51 @@ export default function AdminCategoriesPage() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleToggleActive(cat.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
-                      cat.isActive
-                        ? "bg-green-100 text-green-700 hover:bg-green-200"
-                        : "bg-red-100 text-red-700 hover:bg-red-200"
-                    )}
-                  >
-                    {cat.isActive ? (
-                      <Eye className="h-3 w-3" />
-                    ) : (
-                      <EyeOff className="h-3 w-3" />
-                    )}
-                    {cat.isActive ? "Activa" : "Inactiva"}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleTogglePopular(cat.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                        cat.isPopular
+                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                          : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                      )}
+                      title={cat.isPopular ? "Quitar de populares" : "Marcar como popular"}
+                    >
+                      <Star className={cn("h-3 w-3", cat.isPopular && "fill-amber-500")} />
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(cat.id)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors",
+                        cat.isActive
+                          ? "bg-green-100 text-green-700 hover:bg-green-200"
+                          : "bg-red-100 text-red-700 hover:bg-red-200"
+                      )}
+                    >
+                      {cat.isActive ? (
+                        <Eye className="h-3 w-3" />
+                      ) : (
+                        <EyeOff className="h-3 w-3" />
+                      )}
+                      {cat.isActive ? "Activa" : "Inactiva"}
+                    </button>
+                  </div>
                 </div>
-                {cat.image && (
-                  <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                    <ImageIcon className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="truncate text-xs text-slate-500">{cat.image}</span>
+                {(cat.image || cat.bannerImage) && (
+                  <div className="mt-3 space-y-1.5">
+                    {cat.image && (
+                      <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                        <ImageIcon className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="truncate text-xs text-slate-500">Icono: {cat.image}</span>
+                      </div>
+                    )}
+                    {cat.bannerImage && (
+                      <div className="flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2">
+                        <ImageIcon className="h-4 w-4 shrink-0 text-indigo-400" />
+                        <span className="truncate text-xs text-indigo-500">Banner: {cat.bannerImage}</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <p className="mt-3 text-sm text-slate-600 line-clamp-2">
@@ -444,19 +519,82 @@ export default function AdminCategoriesPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Imagen (URL)
+                  Imagen cuadrada (icono)
                 </label>
-                <input
-                  type="url"
-                  value={form.image}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, image: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="https://ejemplo.com/imagen.png"
-                />
+                {form.image ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+                      {form.image}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, image: "" }))}
+                      className="rounded-lg border border-slate-200 p-2.5 text-slate-400 hover:text-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-600">
+                    {uploadingImage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {uploadingImage ? "Subiendo..." : "Subir imagen cuadrada"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadImage(f, "image");
+                      }}
+                    />
+                  </label>
+                )}
                 <p className="mt-1 text-xs text-slate-400">
-                  Las categorias con imagen aparecen en &quot;Categorias populares&quot; del inicio
+                  Imagen cuadrada tipo logo/icono para la categoria
+                </p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Banner rectangular (home)
+                </label>
+                {form.bannerImage ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 truncate rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
+                      {form.bannerImage}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, bannerImage: "" }))}
+                      className="rounded-lg border border-slate-200 p-2.5 text-slate-400 hover:text-red-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 transition-colors hover:border-indigo-400 hover:text-indigo-600">
+                    {uploadingBanner ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {uploadingBanner ? "Subiendo..." : "Subir banner rectangular"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleUploadImage(f, "bannerImage");
+                      }}
+                    />
+                  </label>
+                )}
+                <p className="mt-1 text-xs text-slate-400">
+                  Imagen rectangular que aparece en &quot;Categorias populares&quot; del inicio
                 </p>
               </div>
               <div>
@@ -487,25 +625,48 @@ export default function AdminCategoriesPage() {
                   })}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="cat-active"
-                  checked={form.isActive}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isActive: e.target.checked,
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label
-                  htmlFor="cat-active"
-                  className="text-sm text-slate-700"
-                >
-                  Categoria activa
-                </label>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="cat-active"
+                    checked={form.isActive}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        isActive: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <label
+                    htmlFor="cat-active"
+                    className="text-sm text-slate-700"
+                  >
+                    Categoria activa
+                  </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="cat-popular"
+                    checked={form.isPopular}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        isPopular: e.target.checked,
+                      }))
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                  />
+                  <label
+                    htmlFor="cat-popular"
+                    className="flex items-center gap-1.5 text-sm text-slate-700"
+                  >
+                    <Star className="h-3.5 w-3.5 text-amber-500" />
+                    Categoria popular
+                  </label>
+                </div>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

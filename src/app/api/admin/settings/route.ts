@@ -54,6 +54,27 @@ export async function PUT(req: NextRequest) {
       highValueThreshold: "number",
       requireManualReviewAbove: "number",
       bannerIntervalSeconds: "number",
+      // Per-gateway fees
+      stripeGatewayFeePercent: "number",
+      stripeGatewayFeeFixed: "number",
+      qrBoliviaGatewayFeePercent: "number",
+      qrBoliviaGatewayFeeFixed: "number",
+      binancePayGatewayFeePercent: "number",
+      binancePayGatewayFeeFixed: "number",
+      cryptoGatewayFeePercent: "number",
+      cryptoGatewayFeeFixed: "number",
+      walletGatewayFeePercent: "number",
+      walletGatewayFeeFixed: "number",
+      // Social media & contact
+      facebookUrl: "string",
+      instagramUrl: "string",
+      twitterUrl: "string",
+      tiktokUrl: "string",
+      whatsappUrl: "string",
+      telegramUrl: "string",
+      contactEmail: "string",
+      contactPhone: "string",
+      contactLocation: "string",
     };
 
     const updateData: Record<string, unknown> = {};

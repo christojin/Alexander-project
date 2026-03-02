@@ -28,6 +28,8 @@ export interface Category {
   description: string;
   icon: string;
   image?: string;
+  bannerImage?: string;
+  isPopular: boolean;
   productCount: number;
   isActive: boolean;
 }

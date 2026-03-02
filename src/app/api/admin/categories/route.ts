@@ -26,6 +26,8 @@ export async function GET() {
     description: c.description ?? "",
     icon: c.icon ?? "Tag",
     image: c.image ?? "",
+    bannerImage: c.bannerImage ?? "",
+    isPopular: c.isPopular,
     productCount: c._count.products,
     isActive: c.isActive,
   }));
@@ -45,12 +47,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, slug, description, icon, image, isActive } = body as {
+  const { name, slug, description, icon, image, bannerImage, isPopular, isActive } = body as {
     name: string;
     slug?: string;
     description?: string;
     icon?: string;
     image?: string;
+    bannerImage?: string;
+    isPopular?: boolean;
     isActive?: boolean;
   };
 
@@ -80,6 +84,8 @@ export async function POST(req: NextRequest) {
       description: description?.trim() ?? null,
       icon: icon ?? "Tag",
       image: image?.trim() || null,
+      bannerImage: bannerImage?.trim() || null,
+      isPopular: isPopular ?? false,
       isActive: isActive ?? true,
     },
     include: { _count: { select: { products: true } } },
@@ -93,6 +99,8 @@ export async function POST(req: NextRequest) {
       description: category.description ?? "",
       icon: category.icon ?? "Tag",
       image: category.image ?? "",
+      bannerImage: category.bannerImage ?? "",
+      isPopular: category.isPopular,
       productCount: category._count.products,
       isActive: category.isActive,
     },

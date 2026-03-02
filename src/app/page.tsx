@@ -18,6 +18,7 @@ import {
   List,
   ChevronLeft,
   Megaphone,
+  Tag,
 } from "lucide-react";
 import { Header } from "@/components/layout";
 import { Footer } from "@/components/layout";
@@ -61,6 +62,7 @@ const gradientColors = [
 interface PopularCategory {
   name: string;
   image: string;
+  bannerImage: string;
   color: string;
   href: string;
 }
@@ -86,6 +88,9 @@ export default function HomePage() {
   const [promotedProducts, setPromotedProducts] = useState<Product[]>([]);
   const [promotedPage, setPromotedPage] = useState(1);
   const [promotedTotalPages, setPromotedTotalPages] = useState(1);
+  const [offerProducts, setOfferProducts] = useState<Product[]>([]);
+  const [offersPage, setOffersPage] = useState(1);
+  const [offersTotalPages, setOffersTotalPages] = useState(1);
   const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>([]);
   const [popularCategories, setPopularCategories] = useState<PopularCategory[]>([]);
 
@@ -103,11 +108,14 @@ export default function HomePage() {
     fetch("/api/catalog")
       .then((res) => res.json())
       .then((data) => {
-        const cats: PopularCategory[] = (data.categories ?? [])
-          .filter((c: { image?: string | null }) => c.image)
-          .map((c: { name: string; slug: string; image: string }, idx: number) => ({
+        const allCats = data.categories ?? [];
+        // Only show categories marked as popular
+        const popular = allCats.filter((c: { isPopular?: boolean }) => c.isPopular);
+        const cats: PopularCategory[] = popular
+          .map((c: { name: string; slug: string; image?: string | null; bannerImage?: string | null }, idx: number) => ({
             name: c.name,
-            image: c.image,
+            image: c.image ?? "",
+            bannerImage: c.bannerImage ?? "",
             color: gradientColors[idx % gradientColors.length],
             href: `/products?category=${c.slug}`,
           }));
@@ -134,6 +142,25 @@ export default function HomePage() {
   useEffect(() => {
     fetchPromoted(promotedPage);
   }, [fetchPromoted, promotedPage]);
+
+  // Fetch offer products (originalPrice > price)
+  const fetchOffers = useCallback((page = 1) => {
+    fetch(`/api/products?offers=true&limit=25&page=${page}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.products)) {
+          setOfferProducts(toFrontendProducts(data.products));
+        }
+        if (data.pagination?.totalPages) {
+          setOffersTotalPages(data.pagination.totalPages);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    fetchOffers(offersPage);
+  }, [fetchOffers, offersPage]);
 
   const slideCount = bannerSlides.length;
 
@@ -341,7 +368,15 @@ export default function HomePage() {
             >
               <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-90`} />
               <div className="relative h-full flex flex-col items-center justify-center p-3 sm:p-4">
-                {cat.image && (
+                {cat.bannerImage ? (
+                  <Image
+                    src={cat.bannerImage}
+                    alt={cat.name}
+                    width={80}
+                    height={48}
+                    className="mb-1.5 sm:mb-2 opacity-90 w-16 h-10 sm:w-20 sm:h-12 object-contain"
+                  />
+                ) : cat.image ? (
                   <Image
                     src={cat.image}
                     alt={cat.name}
@@ -349,6 +384,12 @@ export default function HomePage() {
                     height={48}
                     className="mb-1.5 sm:mb-2 brightness-0 invert opacity-90 w-8 h-8 sm:w-12 sm:h-12"
                   />
+                ) : (
+                  <div className="mb-1.5 sm:mb-2 w-8 h-8 sm:w-12 sm:h-12 rounded-lg bg-white/20 flex items-center justify-center">
+                    <span className="text-lg sm:text-2xl font-bold text-white/90">
+                      {cat.name.charAt(0)}
+                    </span>
+                  </div>
                 )}
                 <span className="text-xs sm:text-sm font-semibold text-white text-center">{cat.name}</span>
                 <ChevronRight className="w-4 h-4 text-white/60 absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -438,6 +479,74 @@ export default function HomePage() {
               <button
                 onClick={() => setPromotedPage((p) => Math.min(promotedTotalPages, p + 1))}
                 disabled={promotedPage === promotedTotalPages}
+                className="flex items-center gap-1 px-4 py-2 rounded-lg border border-surface-200 bg-white text-sm font-medium text-surface-600 hover:bg-surface-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ============================================ */}
+      {/* OFERTAS DEL DÍA */}
+      {/* ============================================ */}
+      {offerProducts.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Tag className="w-6 h-6 text-red-500" />
+              <h2 className="text-2xl font-bold text-surface-900">
+                Ofertas del dia
+              </h2>
+            </div>
+            <Link
+              href="/products?sort=price_asc"
+              className="hidden sm:flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors"
+            >
+              Ver todas las ofertas
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {offerProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                viewMode="grid"
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {offersTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <button
+                onClick={() => setOffersPage((p) => Math.max(1, p - 1))}
+                disabled={offersPage === 1}
+                className="flex items-center gap-1 px-4 py-2 rounded-lg border border-surface-200 bg-white text-sm font-medium text-surface-600 hover:bg-surface-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Anterior
+              </button>
+              {Array.from({ length: offersTotalPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setOffersPage(p)}
+                  className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                    p === offersPage
+                      ? "bg-red-500 text-white"
+                      : "border border-surface-200 bg-white text-surface-600 hover:bg-surface-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setOffersPage((p) => Math.min(offersTotalPages, p + 1))}
+                disabled={offersPage === offersTotalPages}
                 className="flex items-center gap-1 px-4 py-2 rounded-lg border border-surface-200 bg-white text-sm font-medium text-surface-600 hover:bg-surface-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Siguiente

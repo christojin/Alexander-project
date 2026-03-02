@@ -8,6 +8,7 @@ export const categories: Category[] = [
     description: "Gift cards para plataformas de streaming como Netflix, Spotify, Disney+",
     icon: "Tv",
     productCount: 24,
+    isPopular: false,
     isActive: true,
   },
   {
@@ -17,6 +18,7 @@ export const categories: Category[] = [
     description: "Codigos y tarjetas para PlayStation, Xbox, Steam, Nintendo",
     icon: "Gamepad2",
     productCount: 38,
+    isPopular: false,
     isActive: true,
   },
   {
@@ -26,6 +28,7 @@ export const categories: Category[] = [
     description: "Recargas y diamantes para Free Fire, PUBG, Mobile Legends",
     icon: "Smartphone",
     productCount: 15,
+    isPopular: false,
     isActive: true,
   },
   {
@@ -35,6 +38,7 @@ export const categories: Category[] = [
     description: "Gift cards para Amazon, eBay, AliExpress y mas",
     icon: "ShoppingBag",
     productCount: 12,
+    isPopular: false,
     isActive: true,
   },
   {
@@ -44,6 +48,7 @@ export const categories: Category[] = [
     description: "Licencias y suscripciones de software y aplicaciones",
     icon: "Monitor",
     productCount: 8,
+    isPopular: false,
     isActive: true,
   },
   {
@@ -53,6 +58,7 @@ export const categories: Category[] = [
     description: "Tarjetas y creditos para servicios de redes sociales",
     icon: "Share2",
     productCount: 6,
+    isPopular: false,
     isActive: true,
   },
 ];

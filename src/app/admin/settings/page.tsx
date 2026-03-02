@@ -20,6 +20,11 @@ import {
   AlertTriangle,
   UserPlus,
   TicketCheck,
+  Share2,
+  Facebook,
+  Instagram,
+  Phone,
+  MapPin,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
@@ -45,6 +50,17 @@ export default function AdminSettingsPage() {
   const [notifWithdrawRequest, setNotifWithdrawRequest] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("+591 ");
 
+  // Social media & contact
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [twitterUrl, setTwitterUrl] = useState("");
+  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [whatsappUrl, setWhatsappUrl] = useState("");
+  const [telegramUrl, setTelegramUrl] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactLocation, setContactLocation] = useState("");
+
   const [footerHtml, setFooterHtml] = useState(
     `<footer style="background-color: #1e293b; color: #cbd5e1; padding: 2rem; text-align: center;">\n  <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: white;">VirtuMall</p>\n  <p style="margin: 0; font-size: 0.875rem;">Marketplace de gift cards y codigos digitales</p>\n  <p style="margin: 0.5rem 0 0; font-size: 0.75rem; color: #94a3b8;">2026 VirtuMall. Todos los derechos reservados.</p>\n</footer>`
   );
@@ -67,6 +83,16 @@ export default function AdminSettingsPage() {
         setEnableCrypto(data.enableCrypto ?? false);
         setDeliveryDelay(data.deliveryDelayMinutes ?? 30);
         setHighValueThreshold(data.highValueThreshold ?? 500);
+        // Social media
+        if (data.facebookUrl) setFacebookUrl(data.facebookUrl);
+        if (data.instagramUrl) setInstagramUrl(data.instagramUrl);
+        if (data.twitterUrl) setTwitterUrl(data.twitterUrl);
+        if (data.tiktokUrl) setTiktokUrl(data.tiktokUrl);
+        if (data.whatsappUrl) setWhatsappUrl(data.whatsappUrl);
+        if (data.telegramUrl) setTelegramUrl(data.telegramUrl);
+        if (data.contactEmail) setContactEmail(data.contactEmail);
+        if (data.contactPhone) setContactPhone(data.contactPhone);
+        if (data.contactLocation) setContactLocation(data.contactLocation);
       } catch {
         // Keep defaults on error
       }
@@ -89,6 +115,15 @@ export default function AdminSettingsPage() {
           enableCrypto,
           deliveryDelayMinutes: deliveryDelay,
           highValueThreshold,
+          facebookUrl,
+          instagramUrl,
+          twitterUrl,
+          tiktokUrl,
+          whatsappUrl,
+          telegramUrl,
+          contactEmail,
+          contactPhone,
+          contactLocation,
         }),
       });
       if (res.ok) {
@@ -212,6 +247,137 @@ export default function AdminSettingsPage() {
                 rows={3}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Social Media & Contact */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-100 text-pink-600">
+              <Share2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Redes sociales y contacto
+              </h2>
+              <p className="text-sm text-slate-500">
+                URLs de redes sociales que aparecen en el pie de pagina
+              </p>
+            </div>
+          </div>
+          <div className="space-y-4 max-w-2xl">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Facebook className="h-4 w-4 text-blue-600" /> Facebook
+                </label>
+                <input
+                  type="url"
+                  value={facebookUrl}
+                  onChange={(e) => setFacebookUrl(e.target.value)}
+                  placeholder="https://facebook.com/virtumall"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Instagram className="h-4 w-4 text-pink-600" /> Instagram
+                </label>
+                <input
+                  type="url"
+                  value={instagramUrl}
+                  onChange={(e) => setInstagramUrl(e.target.value)}
+                  placeholder="https://instagram.com/virtumall"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Globe className="h-4 w-4 text-sky-500" /> Twitter / X
+                </label>
+                <input
+                  type="url"
+                  value={twitterUrl}
+                  onChange={(e) => setTwitterUrl(e.target.value)}
+                  placeholder="https://twitter.com/virtumall"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Globe className="h-4 w-4 text-black" /> TikTok
+                </label>
+                <input
+                  type="url"
+                  value={tiktokUrl}
+                  onChange={(e) => setTiktokUrl(e.target.value)}
+                  placeholder="https://tiktok.com/@virtumall"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <MessageCircle className="h-4 w-4 text-green-600" /> WhatsApp
+                </label>
+                <input
+                  type="url"
+                  value={whatsappUrl}
+                  onChange={(e) => setWhatsappUrl(e.target.value)}
+                  placeholder="https://wa.me/59171234567"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Globe className="h-4 w-4 text-blue-400" /> Telegram
+                </label>
+                <input
+                  type="url"
+                  value={telegramUrl}
+                  onChange={(e) => setTelegramUrl(e.target.value)}
+                  placeholder="https://t.me/virtumall"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div className="border-t border-slate-200 pt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Mail className="h-4 w-4 text-slate-500" /> Email de contacto
+                </label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="contacto@virtumall.com"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Phone className="h-4 w-4 text-slate-500" /> Telefono
+                </label>
+                <input
+                  type="text"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="+591 7XXXXXXX"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <MapPin className="h-4 w-4 text-slate-500" /> Ubicacion
+                </label>
+                <input
+                  type="text"
+                  value={contactLocation}
+                  onChange={(e) => setContactLocation(e.target.value)}
+                  placeholder="La Paz, Bolivia"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
             </div>
           </div>
         </div>

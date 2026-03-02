@@ -11,7 +11,7 @@ export async function GET() {
     const [categories, brands, regions] = await Promise.all([
       prisma.category.findMany({
         where: { isActive: true },
-        select: { id: true, name: true, slug: true, icon: true, image: true },
+        select: { id: true, name: true, slug: true, icon: true, image: true, bannerImage: true, isPopular: true },
         orderBy: { displayOrder: "asc" },
       }),
       prisma.brand.findMany({
