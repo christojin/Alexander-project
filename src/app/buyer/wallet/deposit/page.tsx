@@ -241,7 +241,7 @@ export default function WalletDepositPage() {
                   min="1"
                   max="10000"
                   step="0.01"
-                  className="w-full pl-8 pr-4 py-3 text-2xl font-semibold border border-surface-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                  className="w-full pl-8 pr-4 py-3 text-2xl font-semibold border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
               </div>
 
@@ -257,7 +257,7 @@ export default function WalletDepositPage() {
                     className={cn(
                       "px-4 py-2 rounded-lg text-sm font-medium border transition-colors",
                       amount === qa.toString()
-                        ? "bg-brand-50 border-brand-300 text-brand-700"
+                        ? "bg-primary-50 border-primary-300 text-primary-700"
                         : "border-surface-200 text-surface-600 hover:bg-surface-50"
                     )}
                   >
@@ -289,7 +289,7 @@ export default function WalletDepositPage() {
             <button
               onClick={handleCreateDeposit}
               disabled={loading || !amount}
-              className="w-full py-3 px-4 bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -461,7 +461,7 @@ export default function WalletDepositPage() {
             )}
             <button
               onClick={() => router.push("/buyer/wallet")}
-              className="mt-4 px-6 py-2 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
+              className="mt-4 px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
             >
               Ir a mi billetera
             </button>
@@ -487,7 +487,7 @@ export default function WalletDepositPage() {
                 setDepositInfo(null);
                 setError(null);
               }}
-              className="mt-4 px-6 py-2 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
+              className="mt-4 px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
             >
               Intentar de nuevo
             </button>

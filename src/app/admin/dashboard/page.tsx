@@ -411,7 +411,7 @@ export default function AdminDashboardPage() {
                     className="transition-colors hover:bg-slate-50"
                   >
                     <td className="whitespace-nowrap px-6 py-4 text-sm font-mono font-medium text-indigo-600">
-                      {order.id}
+                      {order.orderNumber}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-700">
                       {order.buyerName}

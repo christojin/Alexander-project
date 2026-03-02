@@ -610,7 +610,7 @@ export default function BuyerTicketsPage() {
                   <option value="">Selecciona un pedido...</option>
                   {buyerOrders.map((order) => (
                     <option key={order.id} value={order.id}>
-                      {order.id} - {order.productName} ({order.sellerName})
+                      {order.orderNumber} - {order.productName} ({order.sellerName})
                     </option>
                   ))}
                 </select>

@@ -266,7 +266,7 @@ export default function BuyerDashboardPage() {
                     <Fragment key={order.id}>
                       <tr className="transition-colors hover:bg-surface-50/50">
                         <td className="px-5 py-3.5 text-sm font-medium text-surface-900">
-                          {order.id}
+                          {order.orderNumber}
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
@@ -381,7 +381,7 @@ export default function BuyerDashboardPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-surface-400">
-                          {order.id}
+                          {order.orderNumber}
                         </span>
                         <span
                           className={cn(

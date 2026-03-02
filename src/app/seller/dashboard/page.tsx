@@ -219,7 +219,7 @@ export default function SellerDashboardPage() {
                     )}
                   >
                     <td className="px-6 py-3.5 font-medium text-surface-900">
-                      {order.id}
+                      {order.orderNumber}
                     </td>
                     <td className="px-6 py-3.5 text-surface-700">
                       {order.buyerName}

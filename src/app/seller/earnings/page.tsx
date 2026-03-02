@@ -488,7 +488,7 @@ export default function SellerEarningsPage() {
                     </td>
                     <td className="px-6 py-3.5">
                       <span className="font-medium text-surface-900">
-                        {order.id}
+                        {order.orderNumber}
                       </span>
                     </td>
                     <td className="px-6 py-3.5 text-surface-700">

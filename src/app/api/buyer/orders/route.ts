@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { toFrontendOrderList } from "@/lib/api-transforms";
 
 /**
  * GET /api/buyer/orders
@@ -46,8 +47,12 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where,
         include: {
+          buyer: { select: { name: true, email: true } },
           seller: {
-            select: { storeName: true },
+            select: {
+              storeName: true,
+              user: { select: { name: true } },
+            },
           },
           items: {
             include: {
@@ -58,6 +63,19 @@ export async function GET(req: NextRequest) {
                   image: true,
                   productType: true,
                   slug: true,
+                },
+              },
+              giftCardCodes: { select: { codeEncrypted: true } },
+              streamingProfiles: {
+                include: {
+                  streamingAccount: {
+                    select: {
+                      emailEncrypted: true,
+                      usernameEncrypted: true,
+                      passwordEncrypted: true,
+                      expiresAt: true,
+                    },
+                  },
                 },
               },
             },
@@ -76,15 +94,7 @@ export async function GET(req: NextRequest) {
       prisma.order.count({ where }),
     ]);
 
-    return NextResponse.json({
-      orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return NextResponse.json(toFrontendOrderList(orders));
   } catch (error) {
     console.error("[Buyer Orders GET] Error:", error);
     return NextResponse.json(

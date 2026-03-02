@@ -3,6 +3,7 @@ import { Order } from "@/types";
 export const orders: Order[] = [
   {
     id: "ORD-001",
+    orderNumber: "VM-1001",
     buyerId: "buyer-1",
     buyerName: "Carlos Mendoza",
     buyerEmail: "carlos@email.com",
@@ -33,6 +34,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-002",
+    orderNumber: "VM-1002",
     buyerId: "buyer-2",
     buyerName: "Maria Gutierrez",
     buyerEmail: "maria@email.com",
@@ -57,6 +59,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-003",
+    orderNumber: "VM-1003",
     buyerId: "buyer-3",
     buyerName: "Jose Rojas",
     buyerEmail: "jose@email.com",
@@ -81,6 +84,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-004",
+    orderNumber: "VM-1004",
     buyerId: "buyer-1",
     buyerName: "Carlos Mendoza",
     buyerEmail: "carlos@email.com",
@@ -111,6 +115,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-005",
+    orderNumber: "VM-1005",
     buyerId: "buyer-2",
     buyerName: "Maria Gutierrez",
     buyerEmail: "maria@email.com",
@@ -134,6 +139,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-006",
+    orderNumber: "VM-1006",
     buyerId: "buyer-3",
     buyerName: "Jose Rojas",
     buyerEmail: "jose@email.com",
@@ -157,6 +163,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-007",
+    orderNumber: "VM-1007",
     buyerId: "buyer-1",
     buyerName: "Carlos Mendoza",
     buyerEmail: "carlos@email.com",
@@ -181,6 +188,7 @@ export const orders: Order[] = [
   },
   {
     id: "ORD-008",
+    orderNumber: "VM-1008",
     buyerId: "buyer-2",
     buyerName: "Maria Gutierrez",
     buyerEmail: "maria@email.com",

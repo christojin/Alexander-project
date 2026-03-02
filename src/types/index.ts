@@ -125,6 +125,7 @@ export interface StreamingCredentials {
 
 export interface Order {
   id: string;
+  orderNumber: string;
   buyerId: string;
   buyerName: string;
   buyerEmail: string;

@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       const commissionAmount = subtotal * (commissionRate / 100);
       const sellerEarnings = subtotal - commissionAmount;
 
-      const orderNumber = generateOrderNumber();
+      const orderNumber = await generateOrderNumber();
 
       const order = await prisma.order.create({
         data: {

@@ -1,16 +1,12 @@
+import { prisma } from "@/lib/prisma";
+
 /**
- * Generate a human-readable order number.
- * Format: VV-YYYYMMDD-XXXXX (e.g., VV-20260220-A3F9K)
+ * Generate a sequential, human-readable order number.
+ * Format: VM-1001, VM-1002, VM-1003 ...
  */
-export function generateOrderNumber(): string {
-  const now = new Date();
-  const date = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("");
-  const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-  return `VV-${date}-${random}`;
+export async function generateOrderNumber(): Promise<string> {
+  const count = await prisma.order.count();
+  return `VM-${1001 + count}`;
 }
 
 /**

@@ -150,6 +150,7 @@ function buildFlatOrder(order: any, item: any): Order {
 
   return {
     id: itemCount === 1 ? order.id : `${order.id}-${item?.id ?? "0"}`,
+    orderNumber: order.orderNumber ?? order.id,
     buyerId: order.buyerId ?? "",
     buyerName: order.buyer?.name ?? "",
     buyerEmail: order.buyer?.email ?? "",

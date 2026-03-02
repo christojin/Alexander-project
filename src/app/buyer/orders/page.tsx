@@ -93,7 +93,7 @@ export default function BuyerOrdersPage() {
         !query ||
         order.productName.toLowerCase().includes(query) ||
         order.sellerName.toLowerCase().includes(query) ||
-        order.id.toLowerCase().includes(query);
+        order.orderNumber.toLowerCase().includes(query);
       return matchesStatus && matchesSearch;
     });
   }, [orders, searchQuery, statusFilter]);
@@ -301,9 +301,9 @@ export default function BuyerOrdersPage() {
                             </span>
                           </div>
 
-                          {/* Order ID */}
+                          {/* Order Number */}
                           <p className="mt-1.5 text-xs text-surface-400">
-                            {order.id}
+                            {order.orderNumber}
                             {order.quantity > 1 && (
                               <span className="ml-2">
                                 x{order.quantity} unidades
