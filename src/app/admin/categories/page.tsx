@@ -104,7 +104,6 @@ export default function AdminCategoriesPage() {
       const data = await res.json();
       setForm((prev) => ({ ...prev, [field]: data.url }));
     } catch (err) {
-      console.error("Upload error:", err);
     } finally {
       setter(false);
     }
@@ -125,7 +124,6 @@ export default function AdminCategoriesPage() {
         prev.map((c) => (c.id === updated.id ? updated : c))
       );
     } catch (err) {
-      console.error("Error toggling popular:", err);
     }
   };
 
@@ -137,7 +135,6 @@ export default function AdminCategoriesPage() {
       const data: Category[] = await res.json();
       setCategoryList(data);
     } catch (err) {
-      console.error("Error fetching categories:", err);
     } finally {
       setLoading(false);
     }
@@ -162,7 +159,6 @@ export default function AdminCategoriesPage() {
         prev.map((c) => (c.id === updated.id ? updated : c))
       );
     } catch (err) {
-      console.error("Error toggling category:", err);
     }
   };
 
@@ -188,7 +184,6 @@ export default function AdminCategoriesPage() {
       setShowAddModal(false);
       setForm(emptyForm);
     } catch (err) {
-      console.error("Error adding category:", err);
     }
   };
 
@@ -217,7 +212,6 @@ export default function AdminCategoriesPage() {
       setEditingCategory(null);
       setForm(emptyForm);
     } catch (err) {
-      console.error("Error editing category:", err);
     }
   };
 
@@ -230,7 +224,6 @@ export default function AdminCategoriesPage() {
       setCategoryList((prev) => prev.filter((c) => c.id !== catId));
       setDeleteConfirm(null);
     } catch (err) {
-      console.error("Error deleting category:", err);
     }
   };
 

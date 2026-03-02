@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendOrderList } from "@/lib/api-transforms";
 
@@ -11,13 +11,9 @@ import { toFrontendOrderList } from "@/lib/api-transforms";
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");

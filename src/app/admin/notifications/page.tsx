@@ -69,7 +69,6 @@ export default function AdminNotificationsPage() {
       const data = await res.json();
       setAnnouncements(data.announcements);
     } catch (error) {
-      console.error("Error fetching announcements:", error);
     } finally {
       setLoading(false);
     }
@@ -159,7 +158,6 @@ export default function AdminNotificationsPage() {
         prev.map((a) => (a.id === id ? { ...a, isActive } : a))
       );
     } catch (error) {
-      console.error("Error toggling announcement:", error);
     }
   };
 
@@ -169,7 +167,6 @@ export default function AdminNotificationsPage() {
       await fetch(`/api/admin/announcements/${id}`, { method: "DELETE" });
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     } catch (error) {
-      console.error("Error deleting announcement:", error);
     }
   };
 

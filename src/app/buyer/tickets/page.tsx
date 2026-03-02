@@ -97,7 +97,6 @@ function BuyerTicketsContent() {
       const data: Ticket[] = await res.json();
       setTicketsList(data);
     } catch (err) {
-      console.error("Error fetching tickets:", err);
     }
   }, []);
 
@@ -108,7 +107,6 @@ function BuyerTicketsContent() {
       const data: Order[] = await res.json();
       setBuyerOrders(data);
     } catch (err) {
-      console.error("Error fetching orders:", err);
     }
   }, []);
 
@@ -174,7 +172,6 @@ function BuyerTicketsContent() {
       );
       setReplyText((prev) => ({ ...prev, [ticketId]: "" }));
     } catch (err) {
-      console.error("Error sending reply:", err);
     }
   };
 
@@ -203,7 +200,6 @@ function BuyerTicketsContent() {
       setShowNewTicketModal(false);
       setExpandedTicket(newTicket.id);
     } catch (err) {
-      console.error("Error creating ticket:", err);
     }
   };
 

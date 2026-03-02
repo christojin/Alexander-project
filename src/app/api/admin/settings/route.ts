@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -8,10 +8,10 @@ import { prisma } from "@/lib/prisma";
  */
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const settings = await prisma.platformSettings.upsert({
       where: { id: "default" },
@@ -32,10 +32,10 @@ export async function GET() {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const body = await req.json();
 

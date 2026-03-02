@@ -119,7 +119,6 @@ export default function AdminWithdrawalsPage() {
       setPagination(data.pagination);
       setStats(data.stats);
     } catch (error) {
-      console.error("Error fetching withdrawals:", error);
     } finally {
       setLoading(false);
     }
@@ -162,7 +161,6 @@ export default function AdminWithdrawalsPage() {
         fetchWithdrawals();
       }
     } catch (error) {
-      console.error("Error performing action:", error);
     } finally {
       setActionLoading(false);
     }

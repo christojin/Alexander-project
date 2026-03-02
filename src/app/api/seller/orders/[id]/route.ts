@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -11,64 +11,71 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const { id: orderId } = await params;
-  const body = await req.json();
-  const { action } = body as { action: string };
-
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-
-  if (!seller) {
-    return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
-  }
-
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { items: true },
-  });
-
-  if (!order || order.sellerId !== seller.id) {
-    return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
-  }
-
-  if (action === "approve") {
-    // Mark all items as delivered
-    for (const item of order.items) {
-      if (!item.isDelivered) {
-        await prisma.orderItem.update({
-          where: { id: item.id },
-          data: { isDelivered: true, deliveredAt: new Date() },
-        });
-      }
+  try {
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
+  
+    const { id: orderId } = await params;
+    const body = await req.json();
+    const { action } = body as { action: string };
+  
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+  
+    if (!seller) {
+      return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
     }
-
-    await prisma.order.update({
+  
+    const order = await prisma.order.findUnique({
       where: { id: orderId },
-      data: {
-        status: "COMPLETED",
-        paymentStatus: "COMPLETED",
-        completedAt: new Date(),
-      },
+      include: { items: true },
     });
-
-    return NextResponse.json({ success: true, status: "completed" });
+  
+    if (!order || order.sellerId !== seller.id) {
+      return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
+    }
+  
+    if (action === "approve") {
+      // Mark all items as delivered
+      for (const item of order.items) {
+        if (!item.isDelivered) {
+          await prisma.orderItem.update({
+            where: { id: item.id },
+            data: { isDelivered: true, deliveredAt: new Date() },
+          });
+        }
+      }
+  
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: "COMPLETED",
+          paymentStatus: "COMPLETED",
+          completedAt: new Date(),
+        },
+      });
+  
+      return NextResponse.json({ success: true, status: "completed" });
+    }
+  
+    if (action === "under_review") {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { status: "UNDER_REVIEW" },
+      });
+  
+      return NextResponse.json({ success: true, status: "under_review" });
+    }
+  
+    return NextResponse.json({ error: "Accion invalida" }, { status: 400 });
+  } catch (error) {
+    console.error("[SellerOrdersId] Error:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-
-  if (action === "under_review") {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: "UNDER_REVIEW" },
-    });
-
-    return NextResponse.json({ success: true, status: "under_review" });
-  }
-
-  return NextResponse.json({ error: "Accion invalida" }, { status: 400 });
 }

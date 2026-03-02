@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 
 /**
  * GET /api/admin/banners
@@ -8,10 +8,10 @@ import { auth } from "@/lib/auth";
  */
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const banners = await prisma.banner.findMany({
       orderBy: { displayOrder: "asc" },
@@ -30,10 +30,10 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const body = await req.json();
     const { title, subtitle, description, imageUrl, linkUrl, bgColor, brandImages, displayOrder, isActive } = body;

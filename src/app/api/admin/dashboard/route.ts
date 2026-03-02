@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendOrderList } from "@/lib/api-transforms";
 
@@ -33,10 +33,10 @@ const ORDER_INCLUDE = {
  */
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const [
       orders,

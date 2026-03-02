@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/encryption";
 
@@ -11,10 +11,10 @@ type RouteParams = { params: Promise<{ id: string }> };
  */
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "SELLER") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: session.user.id },
@@ -79,10 +79,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
  */
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "SELLER") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: session.user.id },

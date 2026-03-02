@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendTickets } from "@/lib/api-transforms";
 
@@ -16,25 +16,32 @@ const TICKET_INCLUDE = {
  * List tickets for the authenticated seller's store.
  */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  try {
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
+  
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+  
+    if (!seller) {
+      return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
+    }
+  
+    const tickets = await prisma.ticket.findMany({
+      where: { sellerId: seller.id },
+      include: TICKET_INCLUDE,
+      orderBy: { updatedAt: "desc" },
+    });
+  
+    return NextResponse.json(toFrontendTickets(tickets));
+  } catch (error) {
+    console.error("[SellerTickets] Error:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-
-  if (!seller) {
-    return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
-  }
-
-  const tickets = await prisma.ticket.findMany({
-    where: { sellerId: seller.id },
-    include: TICKET_INCLUDE,
-    orderBy: { updatedAt: "desc" },
-  });
-
-  return NextResponse.json(toFrontendTickets(tickets));
 }

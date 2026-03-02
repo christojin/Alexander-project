@@ -69,7 +69,6 @@ export default function AdminOrdersPage() {
       setTotal(data.total);
       setStatusCounts(data.statusCounts);
     } catch (error) {
-      console.error("Error fetching orders:", error);
     } finally {
       setLoading(false);
     }

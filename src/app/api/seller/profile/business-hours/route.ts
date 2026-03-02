@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 
 interface BusinessHourInput {
@@ -11,10 +11,10 @@ interface BusinessHourInput {
 
 // PUT /api/seller/profile/business-hours — Save all business hours
 export async function PUT(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+
+  const authResult = await requireSeller();
+  if (authResult.error) return authResult.response;
+  const { session } = authResult;
 
   try {
     const body = await req.json();

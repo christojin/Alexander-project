@@ -112,7 +112,6 @@ export default function AdminKYCPage() {
       const data = await res.json();
       setSellers(data.sellers ?? []);
     } catch (error) {
-      console.error("Error fetching KYC sellers:", error);
       setSellers([]);
     } finally {
       setLoading(false);
@@ -132,7 +131,6 @@ export default function AdminKYCPage() {
         REJECTED: (rejected.sellers ?? []).length,
       });
     } catch (error) {
-      console.error("Error fetching KYC counts:", error);
     }
   }, []);
 
@@ -186,10 +184,8 @@ export default function AdminKYCPage() {
         fetchCounts();
       } else {
         const data = await res.json();
-        console.error("Error:", data.error);
       }
     } catch (error) {
-      console.error("Error performing KYC action:", error);
     } finally {
       setActionLoading(false);
     }

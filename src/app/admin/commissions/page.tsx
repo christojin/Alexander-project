@@ -69,7 +69,6 @@ export default function AdminCommissionsPage() {
       setTotalCommissionsCollected(data.totalCommissionsCollected);
       setTotalOrders(data.totalOrders);
     } catch (error) {
-      console.error("Error fetching commissions:", error);
     } finally {
       setLoading(false);
     }
@@ -137,7 +136,6 @@ export default function AdminCommissionsPage() {
         setSavedRows((prev) => ({ ...prev, [sellerId]: false }));
       }, 2000);
     } catch (error) {
-      console.error("Error saving commission rate:", error);
     }
   };
 
@@ -153,7 +151,6 @@ export default function AdminCommissionsPage() {
       setDefaultSaved(true);
       setTimeout(() => setDefaultSaved(false), 2000);
     } catch (error) {
-      console.error("Error saving default rate:", error);
     }
   };
 
@@ -178,7 +175,6 @@ export default function AdminCommissionsPage() {
         setSavedRows({});
       }, 2000);
     } catch (error) {
-      console.error("Error in bulk save:", error);
     }
   };
 
@@ -196,7 +192,6 @@ export default function AdminCommissionsPage() {
       setBuyerFeeSaved(true);
       setTimeout(() => setBuyerFeeSaved(false), 2000);
     } catch (error) {
-      console.error("Error saving buyer fee:", error);
     }
   };
 
@@ -222,7 +217,6 @@ export default function AdminCommissionsPage() {
       setGatewayFeesSaved(true);
       setTimeout(() => setGatewayFeesSaved(false), 2000);
     } catch (error) {
-      console.error("Error saving gateway fees:", error);
     }
   };
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/encryption";
 
@@ -7,10 +7,9 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 /** Verify seller owns this product and return both seller + product */
 async function verifySellerProduct(productId: string) {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return { error: "No autorizado", status: 401 } as const;
-  }
+  const authResult = await requireSeller();
+  if (authResult.error) return { error: "No autorizado", status: 401 } as const;
+  const { session } = authResult;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: session.user.id },
@@ -38,7 +37,7 @@ function daysToDate(days: number): Date {
  * GET /api/seller/products/[id]/accounts
  * List streaming accounts for a product.
  */
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(_req: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const result = await verifySellerProduct(id);

@@ -47,7 +47,6 @@ export default function SellerOrdersPage() {
       const data: Order[] = await res.json();
       setOrdersList(data);
     } catch (error) {
-      console.error("Error fetching orders:", error);
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,6 @@ export default function SellerOrdersPage() {
         )
       );
     } catch (error) {
-      console.error("Error approving order:", error);
     }
   };
 
@@ -125,7 +123,6 @@ export default function SellerOrdersPage() {
         )
       );
     } catch (error) {
-      console.error("Error marking order under review:", error);
     }
   };
 

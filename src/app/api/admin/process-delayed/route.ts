@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 import { processDelayedDeliveries } from "@/lib/fraud";
 
 /**
@@ -8,10 +8,10 @@ import { processDelayedDeliveries } from "@/lib/fraud";
  */
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const result = await processDelayedDeliveries();
 

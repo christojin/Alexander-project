@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendOrderList } from "@/lib/api-transforms";
 
@@ -32,57 +32,64 @@ const ORDER_INCLUDE = {
  * Financial summary and transaction history for the authenticated seller.
  */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  try {
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
+  
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        id: true,
+        commissionRate: true,
+        totalEarnings: true,
+        availableBalance: true,
+      },
+    });
+  
+    if (!seller) {
+      return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
+    }
+  
+    const orders = await prisma.order.findMany({
+      where: { sellerId: seller.id },
+      include: ORDER_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+  
+    const flatOrders = toFrontendOrderList(orders);
+  
+    const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalCommissions = orders.reduce((sum, o) => sum + o.commissionAmount, 0);
+    const netBalance = orders.reduce((sum, o) => sum + o.sellerEarnings, 0);
+    const pendingPayment = orders
+      .filter((o) => o.status === "PENDING" || o.status === "UNDER_REVIEW")
+      .reduce((sum, o) => sum + o.sellerEarnings, 0);
+  
+    // Sum of pending + approved withdrawal amounts
+    const pendingWithdrawals = await prisma.withdrawal.aggregate({
+      where: {
+        sellerId: seller.id,
+        status: { in: ["PENDING", "APPROVED"] },
+      },
+      _sum: { amount: true },
+    });
+  
+    return NextResponse.json({
+      commissionRate: seller.commissionRate,
+      totalRevenue,
+      totalCommissions,
+      netBalance,
+      pendingPayment,
+      availableBalance: seller.availableBalance,
+      pendingWithdrawals: pendingWithdrawals._sum.amount || 0,
+      transactions: flatOrders,
+    });
+  } catch (error) {
+    console.error("[SellerEarnings] Error:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: session.user.id },
-    select: {
-      id: true,
-      commissionRate: true,
-      totalEarnings: true,
-      availableBalance: true,
-    },
-  });
-
-  if (!seller) {
-    return NextResponse.json({ error: "No es vendedor" }, { status: 403 });
-  }
-
-  const orders = await prisma.order.findMany({
-    where: { sellerId: seller.id },
-    include: ORDER_INCLUDE,
-    orderBy: { createdAt: "desc" },
-  });
-
-  const flatOrders = toFrontendOrderList(orders);
-
-  const totalRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const totalCommissions = orders.reduce((sum, o) => sum + o.commissionAmount, 0);
-  const netBalance = orders.reduce((sum, o) => sum + o.sellerEarnings, 0);
-  const pendingPayment = orders
-    .filter((o) => o.status === "PENDING" || o.status === "UNDER_REVIEW")
-    .reduce((sum, o) => sum + o.sellerEarnings, 0);
-
-  // Sum of pending + approved withdrawal amounts
-  const pendingWithdrawals = await prisma.withdrawal.aggregate({
-    where: {
-      sellerId: seller.id,
-      status: { in: ["PENDING", "APPROVED"] },
-    },
-    _sum: { amount: true },
-  });
-
-  return NextResponse.json({
-    commissionRate: seller.commissionRate,
-    totalRevenue,
-    totalCommissions,
-    netBalance,
-    pendingPayment,
-    availableBalance: seller.availableBalance,
-    pendingWithdrawals: pendingWithdrawals._sum.amount || 0,
-    transactions: flatOrders,
-  });
 }

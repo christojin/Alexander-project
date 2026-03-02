@@ -70,7 +70,6 @@ export default function AdminCodesPage() {
       setTotal(data.total);
       setStatusCounts(data.statusCounts);
     } catch (error) {
-      console.error("Error fetching codes:", error);
     } finally {
       setLoading(false);
     }

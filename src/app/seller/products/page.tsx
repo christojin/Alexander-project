@@ -256,7 +256,6 @@ export default function SellerProductsPage() {
       setBrands(data.brands);
       setRegions(data.regions);
     } catch (err) {
-      console.error("Catalog fetch error:", err);
     }
   }, []);
 
@@ -414,7 +413,6 @@ export default function SellerProductsPage() {
           );
           if (!codesRes.ok) {
             const errData = await codesRes.json();
-            console.error("Code upload error:", errData.error);
           }
         }
       }
@@ -440,7 +438,6 @@ export default function SellerProductsPage() {
         );
         if (!accountRes.ok) {
           const errData = await accountRes.json();
-          console.error("Account upload error:", errData.error);
         }
       }
 
@@ -487,7 +484,6 @@ export default function SellerProductsPage() {
         )
       );
     } catch (err) {
-      console.error("Toggle error:", err);
     }
   };
 
@@ -555,7 +551,6 @@ export default function SellerProductsPage() {
       setCodesList(data.codes ?? []);
       setCodesSummary(data.summary ?? null);
     } catch (err) {
-      console.error("Fetch codes error:", err);
     } finally {
       setCodesLoading(false);
     }
@@ -653,7 +648,6 @@ export default function SellerProductsPage() {
       setAccountsList(data.accounts ?? []);
       setAccountsSummary(data.summary ?? null);
     } catch (err) {
-      console.error("Fetch accounts error:", err);
     } finally {
       setAccountsLoading(false);
     }

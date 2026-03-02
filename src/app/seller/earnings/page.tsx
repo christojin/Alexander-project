@@ -112,7 +112,6 @@ export default function SellerEarningsPage() {
         const json: EarningsData = await res.json();
         setData(json);
       } catch (err) {
-        console.error("Error fetching seller earnings:", err);
       } finally {
         setLoading(false);
       }
@@ -129,7 +128,6 @@ export default function SellerEarningsPage() {
       setWithdrawals(json.withdrawals);
       setWPagination(json.pagination);
     } catch (err) {
-      console.error("Error fetching withdrawals:", err);
     } finally {
       setWLoading(false);
     }

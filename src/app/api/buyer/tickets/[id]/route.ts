@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendTickets } from "@/lib/api-transforms";
 
@@ -20,57 +20,65 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const { id: ticketId } = await params;
-  const body = await req.json();
-  const { message } = body as { message: string };
-
-  if (!message?.trim()) {
+  try {
+  
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
+  
+    const { id: ticketId } = await params;
+    const body = await req.json();
+    const { message } = body as { message: string };
+  
+    if (!message?.trim()) {
+      return NextResponse.json(
+        { error: "El mensaje es requerido" },
+        { status: 400 }
+      );
+    }
+  
+    // Verify the ticket belongs to this buyer
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { buyerId: true, status: true },
+    });
+  
+    if (!ticket || ticket.buyerId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Ticket no encontrado" },
+        { status: 404 }
+      );
+    }
+  
+    if (ticket.status === "CLOSED" || ticket.status === "RESOLVED") {
+      return NextResponse.json(
+        { error: "No se puede responder a un ticket cerrado o resuelto" },
+        { status: 400 }
+      );
+    }
+  
+    await prisma.ticketMessage.create({
+      data: {
+        ticketId,
+        senderId: session.user.id,
+        senderRole: "BUYER",
+        content: message.trim(),
+      },
+    });
+  
+    // Update ticket timestamp
+    const updated = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { updatedAt: new Date() },
+      include: TICKET_INCLUDE,
+    });
+  
+    return NextResponse.json(toFrontendTickets([updated])[0]);
+  } catch (error) {
+    console.error("[BuyerTicketsId] Error:", error);
     return NextResponse.json(
-      { error: "El mensaje es requerido" },
-      { status: 400 }
+      { error: "Error interno del servidor" },
+      { status: 500 }
     );
   }
-
-  // Verify the ticket belongs to this buyer
-  const ticket = await prisma.ticket.findUnique({
-    where: { id: ticketId },
-    select: { buyerId: true, status: true },
-  });
-
-  if (!ticket || ticket.buyerId !== session.user.id) {
-    return NextResponse.json(
-      { error: "Ticket no encontrado" },
-      { status: 404 }
-    );
-  }
-
-  if (ticket.status === "CLOSED" || ticket.status === "RESOLVED") {
-    return NextResponse.json(
-      { error: "No se puede responder a un ticket cerrado o resuelto" },
-      { status: 400 }
-    );
-  }
-
-  await prisma.ticketMessage.create({
-    data: {
-      ticketId,
-      senderId: session.user.id,
-      senderRole: "BUYER",
-      content: message.trim(),
-    },
-  });
-
-  // Update ticket timestamp
-  const updated = await prisma.ticket.update({
-    where: { id: ticketId },
-    data: { updatedAt: new Date() },
-    include: TICKET_INCLUDE,
-  });
-
-  return NextResponse.json(toFrontendTickets([updated])[0]);
 }

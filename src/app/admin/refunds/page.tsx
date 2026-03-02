@@ -128,7 +128,6 @@ export default function AdminRefundsPage() {
       setRefunds(data.refunds);
       setPagination(data.pagination);
     } catch (error) {
-      console.error("Error fetching refunds:", error);
     } finally {
       setLoading(false);
     }

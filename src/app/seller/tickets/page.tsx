@@ -62,7 +62,6 @@ export default function SellerTicketsPage() {
       const data: Ticket[] = await res.json();
       setTicketsList(data);
     } catch (err) {
-      console.error("Error fetching tickets:", err);
     } finally {
       setLoading(false);
     }
@@ -131,7 +130,6 @@ export default function SellerTicketsPage() {
       );
       setReplyInputs((prev) => ({ ...prev, [ticketId]: "" }));
     } catch (err) {
-      console.error("Error sending reply:", err);
     }
   }, [replyInputs]);
 
@@ -151,7 +149,6 @@ export default function SellerTicketsPage() {
         prev.map((t) => (t.id === ticketId ? updatedTicket : t))
       );
     } catch (err) {
-      console.error("Error updating ticket status:", err);
     }
   }, []);
 

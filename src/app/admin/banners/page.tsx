@@ -88,7 +88,7 @@ export default function AdminBannersPage() {
     fetch("/api/admin/banners")
       .then((res) => res.json())
       .then((data) => setBanners(data.banners ?? []))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 
@@ -151,7 +151,6 @@ export default function AdminBannersPage() {
       setShowModal(false);
       fetchBanners();
     } catch (error) {
-      console.error("Error saving banner:", error);
     } finally {
       setSaving(false);
     }
@@ -163,7 +162,6 @@ export default function AdminBannersPage() {
       setDeleteConfirm(null);
       fetchBanners();
     } catch (error) {
-      console.error("Error deleting banner:", error);
     }
   };
 
@@ -176,7 +174,6 @@ export default function AdminBannersPage() {
       });
       fetchBanners();
     } catch (error) {
-      console.error("Error toggling banner:", error);
     }
   };
 
@@ -204,7 +201,6 @@ export default function AdminBannersPage() {
       ]);
       fetchBanners();
     } catch (error) {
-      console.error("Error reordering:", error);
     }
   };
 

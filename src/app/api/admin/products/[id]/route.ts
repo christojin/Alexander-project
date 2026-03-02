@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 
 /**
  * PUT /api/admin/products/[id]
@@ -8,10 +8,10 @@ import { auth } from "@/lib/auth";
  */
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id } = await params;
     const body = await req.json();
@@ -44,10 +44,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
  */
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id } = await params;
 

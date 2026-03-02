@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
 import { processRefund } from "@/lib/refund";
 import { prisma } from "@/lib/prisma";
 
@@ -12,10 +12,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id: orderId } = await params;
     const body = await req.json().catch(() => ({}));
@@ -54,10 +54,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id: orderId } = await params;
 

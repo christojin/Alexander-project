@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 import { checkRateLimit } from "@/lib/rate-limit-api";
 
 // GET /api/seller/kyc — Get current seller's KYC status
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+
+  const authResult = await requireSeller();
+  if (authResult.error) return authResult.response;
+  const { session } = authResult;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: session.user.id },
@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
   const limited = checkRateLimit(req, { windowMs: 60 * 60 * 1000, maxRequests: 3 }, "kyc");
   if (limited) return limited;
 
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+
+  const authResult = await requireSeller();
+  if (authResult.error) return authResult.response;
+  const { session } = authResult;
 
   try {
     const body = await req.json();

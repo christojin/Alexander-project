@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
@@ -11,10 +11,10 @@ type RouteContext = { params: Promise<{ id: string }> };
  */
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id } = await context.params;
     const body = await req.json();
@@ -73,10 +73,10 @@ export async function PUT(req: NextRequest, context: RouteContext) {
  */
 export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+
+    const authResult = await requireAdmin();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const { id } = await context.params;
     await prisma.brand.delete({ where: { id } });

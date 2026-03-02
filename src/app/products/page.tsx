@@ -89,7 +89,7 @@ function ProductsContent() {
         setCategories(data.categories ?? []);
         setRegions(data.regions ?? []);
       })
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   // Build API query params and fetch products
@@ -107,7 +107,7 @@ function ProductsContent() {
     fetch(`/api/products?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => setProducts(toFrontendProducts(data.products)))
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [searchQuery, sortBy, showPromotedOnly, selectedRegion, minPrice, maxPrice]);
 

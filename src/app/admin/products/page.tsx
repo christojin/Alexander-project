@@ -68,7 +68,7 @@ export default function AdminProductsPage() {
         setCategories(data.categories ?? []);
         setSellers(data.sellers ?? []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   };
 
@@ -114,7 +114,6 @@ export default function AdminProductsPage() {
         )
       );
     } catch (error) {
-      console.error("Error toggling product:", error);
     }
   };
 
@@ -138,7 +137,6 @@ export default function AdminProductsPage() {
       setEditingProduct(null);
       fetchProducts();
     } catch (error) {
-      console.error("Error updating product:", error);
     } finally {
       setSaving(false);
     }
@@ -157,7 +155,6 @@ export default function AdminProductsPage() {
       setError(null);
       fetchProducts();
     } catch (err) {
-      console.error("Error deleting product:", err);
       setError("Error de conexion al eliminar producto");
       setDeleteConfirm(null);
     }

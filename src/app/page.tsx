@@ -103,7 +103,7 @@ export default function HomePage() {
           setBannerSlides(data.banners);
         }
       })
-      .catch(console.error);
+      .catch(() => {});
 
     fetch("/api/catalog")
       .then((res) => res.json())
@@ -121,7 +121,7 @@ export default function HomePage() {
           }));
         setPopularCategories(cats);
       })
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   // Fetch promoted products from database
@@ -136,7 +136,7 @@ export default function HomePage() {
           setPromotedTotalPages(data.pagination.totalPages);
         }
       })
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -155,7 +155,7 @@ export default function HomePage() {
           setOffersTotalPages(data.pagination.totalPages);
         }
       })
-      .catch(console.error);
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

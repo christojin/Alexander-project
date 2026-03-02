@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import {
   generateMemoCode,
@@ -16,10 +16,10 @@ import { creditWallet } from "@/lib/wallet";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const body = await req.json();
     const amount = Number(body.amount);
@@ -98,10 +98,10 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const url = new URL(req.url);
     const depositId = url.searchParams.get("depositId");
@@ -191,10 +191,10 @@ export async function GET(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const body = await req.json();
     const { depositId } = body;

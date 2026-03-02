@@ -44,7 +44,6 @@ export default function AdminExchangeRatesPage() {
       const data = await res.json();
       setCurrencies(data.currencies);
     } catch (error) {
-      console.error("Error fetching currencies:", error);
     } finally {
       setLoading(false);
     }
@@ -72,7 +71,6 @@ export default function AdminExchangeRatesPage() {
         prev.map((c) => (c.id === id ? { ...c, isActive } : c))
       );
     } catch (error) {
-      console.error("Error toggling currency:", error);
     }
   };
 
@@ -89,7 +87,6 @@ export default function AdminExchangeRatesPage() {
       setSavedRows((prev) => ({ ...prev, [id]: true }));
       setTimeout(() => setSavedRows((prev) => ({ ...prev, [id]: false })), 2000);
     } catch (error) {
-      console.error("Error saving rate:", error);
     }
   };
 
@@ -99,7 +96,6 @@ export default function AdminExchangeRatesPage() {
       await fetch(`/api/admin/currencies/${id}`, { method: "DELETE" });
       setCurrencies((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
-      console.error("Error deleting currency:", error);
     }
   };
 

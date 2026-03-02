@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth-utils";
 import { getWalletInfo } from "@/lib/wallet";
 
 /**
@@ -8,10 +8,10 @@ import { getWalletInfo } from "@/lib/wallet";
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
 
     const url = new URL(req.url);
     const page = Math.max(1, Number(url.searchParams.get("page")) || 1);

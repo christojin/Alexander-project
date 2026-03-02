@@ -73,7 +73,6 @@ export default function AdminDashboardPage() {
         const json: DashboardData = await res.json();
         setData(json);
       } catch (error) {
-        console.error("Error fetching admin dashboard:", error);
       } finally {
         setLoading(false);
       }

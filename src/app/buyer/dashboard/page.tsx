@@ -50,7 +50,6 @@ export default function BuyerDashboardPage() {
         const json: DashboardData = await res.json();
         setData(json);
       } catch (err) {
-        console.error("Error fetching dashboard:", err);
       } finally {
         setLoading(false);
       }

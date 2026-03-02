@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slugify";
 
 // GET /api/seller/profile — Get current seller's profile
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+
+  const authResult = await requireSeller();
+  if (authResult.error) return authResult.response;
+  const { session } = authResult;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: session.user.id },
@@ -28,10 +28,10 @@ export async function GET() {
 
 // PATCH /api/seller/profile — Update seller profile
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "SELLER") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+
+  const authResult = await requireSeller();
+  if (authResult.error) return authResult.response;
+  const { session } = authResult;
 
   try {
     const body = await req.json();

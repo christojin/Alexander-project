@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireSeller } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { toFrontendOrderList } from "@/lib/api-transforms";
 
@@ -32,25 +32,32 @@ const ORDER_INCLUDE = {
  * List all orders for the authenticated seller's store.
  */
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  try {
+    const authResult = await requireSeller();
+    if (authResult.error) return authResult.response;
+    const { session } = authResult;
+  
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+  
+    if (!seller) {
+      return NextResponse.json({ error: "Perfil de vendedor no encontrado" }, { status: 403 });
+    }
+  
+    const orders = await prisma.order.findMany({
+      where: { sellerId: seller.id },
+      include: ORDER_INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+  
+    return NextResponse.json(toFrontendOrderList(orders));
+  } catch (error) {
+    console.error("[SellerOrders] Error:", error);
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    );
   }
-
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-
-  if (!seller) {
-    return NextResponse.json({ error: "Perfil de vendedor no encontrado" }, { status: 403 });
-  }
-
-  const orders = await prisma.order.findMany({
-    where: { sellerId: seller.id },
-    include: ORDER_INCLUDE,
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(toFrontendOrderList(orders));
 }
